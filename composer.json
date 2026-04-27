@@ -1,0 +1,71 @@
+{
+    "name": "rahatulrabbi/laravel-chat",
+    "description": "A professional, real-time chat package for Laravel with private/group conversations, reactions, file attachments, message status tracking, and WebSocket support via Laravel Reverb.",
+    "type": "library",
+    "keywords": [
+        "laravel",
+        "chat",
+        "real-time",
+        "websocket",
+        "reverb",
+        "messaging",
+        "group-chat",
+        "reactions",
+        "pusher"
+    ],
+    "homepage": "https://github.com/rahatulrabbi/laravel-chat",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Rahatul Rabbi",
+            "email": "rahatulrabbi@example.com",
+            "homepage": "https://github.com/rahatulrabbi",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^11.0|^12.0",
+        "laravel/reverb": "^1.0",
+        "laravel/sanctum": "^4.0",
+        "kreait/laravel-firebase": "^5.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0",
+        "pestphp/pest": "^2.0",
+        "pestphp/pest-plugin-laravel": "^2.0",
+        "mockery/mockery": "^1.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "RahatulRabbi\\LaravelChat\\": "src/"
+        },
+        "files": [
+            "src/Helpers/helpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "RahatulRabbi\\LaravelChat\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "test-coverage": "vendor/bin/pest --coverage"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "RahatulRabbi\\LaravelChat\\LaravelChatServiceProvider"
+            ],
+            "aliases": {
+                "LaravelChat": "RahatulRabbi\\LaravelChat\\Facades\\Chat"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

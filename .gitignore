@@ -1,0 +1,8 @@
+/vendor
+/node_modules
+/.phpunit.cache
+/build
+composer.lock
+.env
+.DS_Store
+Thumbs.db
