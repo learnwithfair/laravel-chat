@@ -6,37 +6,36 @@ return [
     |--------------------------------------------------------------------------
     | User Model
     |--------------------------------------------------------------------------
-    | The fully qualified class name of your User model. The package will use
-    | this model for all user-related queries and relationships.
+    | The fully qualified class name of your application's User model.
     |
     */
-    'user_model'               => \App\Models\User::class,
+    'user_model' => \App\Models\User::class,
 
     /*
     |--------------------------------------------------------------------------
-    | User Fields Mapping
+    | User Field Mapping
     |--------------------------------------------------------------------------
-    | Map your User model's fields to the package's expected field names.
-    | This allows full flexibility regardless of your column naming convention.
+    | Map your User model columns to the names the package expects internally.
+    | Change the values to match your actual database column names.
     |
-    | Example: if your users table has 'profile_photo' instead of 'avatar',
+    | Example: if your column is "profile_photo" instead of "avatar_path",
     | set 'avatar' => 'profile_photo'
     |
     */
-    'user_fields'              => [
+    'user_fields' => [
         'id'        => 'id',
         'name'      => 'name',
-        'avatar'    => 'avatar_path',  // ← change to your avatar column name
-        'last_seen' => 'last_seen_at', // ← change to your last_seen column name
-        'is_active' => 'is_active',    // ← optional: filter inactive users
+        'avatar'    => 'avatar_path',
+        'last_seen' => 'last_seen_at',
+        'is_active' => 'is_active',
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Online Presence
+    | Online Threshold
     |--------------------------------------------------------------------------
-    | Define how long (in minutes) a user is considered "online" after their
-    | last API activity. Default is 2 minutes.
+    | Number of minutes after the last seen timestamp before a user is
+    | considered offline. Default: 2 minutes.
     |
     */
     'online_threshold_minutes' => env('CHAT_ONLINE_THRESHOLD', 2),
@@ -45,11 +44,11 @@ return [
     |--------------------------------------------------------------------------
     | Routing
     |--------------------------------------------------------------------------
-    | Control the API routing behavior. You can disable built-in routes and
-    | define your own, or customize prefix and middleware stack.
+    | Control the package's built-in API routes.
+    | Set 'enabled' to false if you want to define routes manually.
     |
     */
-    'routing'                  => [
+    'routing' => [
         'enabled'    => true,
         'prefix'     => env('CHAT_ROUTE_PREFIX', 'api/v1'),
         'middleware' => ['api', 'auth:sanctum', 'laravel-chat.last-seen'],
@@ -57,13 +56,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Broadcasting (Real-Time)
+    | Broadcasting Driver
     |--------------------------------------------------------------------------
-    | Configure which broadcasting driver to use.
-    | Options: 'reverb' | 'pusher' | 'ably' | 'log' | 'null'
+    | Supported: "reverb", "pusher", "ably", "log", "null"
     |
     */
-    'broadcasting'             => [
+    'broadcasting' => [
         'driver' => env('BROADCAST_DRIVER', 'reverb'),
 
         'reverb' => [
@@ -88,14 +86,14 @@ return [
     |--------------------------------------------------------------------------
     | File Uploads
     |--------------------------------------------------------------------------
-    | Configure file storage settings for message attachments and group avatars.
+    | Configure storage for message attachments and group avatars.
     |
     */
-    'uploads'                  => [
+    'uploads' => [
         'disk'              => env('CHAT_UPLOAD_DISK', 'public'),
         'message_path'      => 'uploads/messages',
         'group_avatar_path' => 'uploads/groups/avatars',
-        'max_file_size_kb'  => env('CHAT_MAX_FILE_SIZE', 51200), // 50MB
+        'max_file_size_kb'  => env('CHAT_MAX_FILE_SIZE', 51200),
         'allowed_types'     => [
             'image' => ['jpg', 'jpeg', 'png', 'gif', 'webp'],
             'video' => ['mp4', 'mov', 'avi', 'mkv', 'webm'],
@@ -106,34 +104,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Push Notifications (FCM via Firebase)
+    | Push Notifications
     |--------------------------------------------------------------------------
-    | Enable/disable push notifications. Requires kreait/laravel-firebase.
-    | Set firebase credentials in config/firebase.php.
+    | Requires kreait/laravel-firebase. Place your Firebase service account
+    | JSON at: storage/app/firebase/service-account.json
     |
     */
-    'push_notifications'       => [
+    'push_notifications' => [
         'enabled'  => env('CHAT_PUSH_NOTIFICATIONS', false),
-        'provider' => 'fcm', // Currently only 'fcm' supported
+        'provider' => 'fcm',
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Invite Links
+    | Invite URL
     |--------------------------------------------------------------------------
-    | Base URL used for generating group invite links.
+    | Base URL used when generating group invite links.
     |
     */
-    'invite_url'               => env('CHAT_INVITE_URL', env('APP_URL') . '/api/v1/accept-invite'),
+    'invite_url' => env('CHAT_INVITE_URL', null),
 
     /*
     |--------------------------------------------------------------------------
     | Pagination Defaults
     |--------------------------------------------------------------------------
-    | Default per-page limits for paginated responses.
-    |
     */
-    'pagination'               => [
+    'pagination' => [
         'conversations' => 30,
         'messages'      => 20,
         'pinned'        => 40,
@@ -146,10 +142,8 @@ return [
     |--------------------------------------------------------------------------
     | Message Settings
     |--------------------------------------------------------------------------
-    | Fine-tune message behaviour.
-    |
     */
-    'messages'                 => [
+    'messages' => [
         'unsent_placeholder' => 'Unsent',
         'allow_edit'         => true,
         'allow_forward'      => true,
@@ -159,12 +153,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Group Settings Defaults
+    | Group Defaults
     |--------------------------------------------------------------------------
-    | Default settings applied when a new group is created.
+    | Default group_settings values when a new group is created.
     |
     */
-    'group_defaults'           => [
+    'group_defaults' => [
         'allow_members_to_send_messages'           => true,
         'allow_members_to_add_remove_participants' => false,
         'allow_members_to_change_group_info'       => false,
@@ -176,12 +170,10 @@ return [
     |--------------------------------------------------------------------------
     | Cache
     |--------------------------------------------------------------------------
-    | Enable/disable caching for expensive queries.
-    |
     */
-    'cache'                    => [
+    'cache' => [
         'enabled' => env('CHAT_CACHE_ENABLED', true),
-        'ttl'     => env('CHAT_CACHE_TTL', 300), // seconds
+        'ttl'     => env('CHAT_CACHE_TTL', 300),
         'prefix'  => 'laravel_chat',
     ],
 
@@ -189,10 +181,8 @@ return [
     |--------------------------------------------------------------------------
     | Queue
     |--------------------------------------------------------------------------
-    | Queue settings for async jobs like push notifications and unmute tasks.
-    |
     */
-    'queue'                    => [
+    'queue' => [
         'connection' => env('CHAT_QUEUE_CONNECTION', env('QUEUE_CONNECTION', 'sync')),
         'name'       => env('CHAT_QUEUE_NAME', 'chat'),
     ],

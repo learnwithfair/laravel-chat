@@ -1,6 +1,6 @@
 {
     "name": "rahatulrabbi/laravel-chat",
-    "description": "A professional, real-time chat package for Laravel with private/group conversations, reactions, file attachments, message status tracking, and WebSocket support via Laravel Reverb.",
+    "description": "A professional real-time chat package for Laravel with private and group conversations, message reactions, file attachments, message status tracking, and WebSocket support.",
     "type": "library",
     "keywords": [
         "laravel",
@@ -8,32 +8,36 @@
         "real-time",
         "websocket",
         "reverb",
+        "pusher",
         "messaging",
         "group-chat",
         "reactions",
-        "pusher"
+        "broadcast"
     ],
-    "homepage": "https://github.com/rahatulrabbi/laravel-chat",
+    "homepage": "https://github.com/learnwithfair/laravel-chat",
     "license": "MIT",
     "authors": [
         {
-            "name": "Rahatul Rabbi",
-            "email": "rahatulrabbi@example.com",
-            "homepage": "https://github.com/rahatulrabbi",
-            "role": "Developer"
+            "name": "MD. RAHATUL RABBI",
+            "email": "rahatul.ice.09.pust@gmail.com",
+            "homepage": "https://github.com/learnwithfair",
+            "role": "Software Engineer"
         }
     ],
     "require": {
-        "php": "^8.2",
-        "laravel/framework": "^11.0|^12.0",
-        "laravel/reverb": "^1.0",
-        "laravel/sanctum": "^4.0",
-        "kreait/laravel-firebase": "^5.0"
+        "php": "^8.2 || ^8.3 || ^8.4 || ^8.5 || ^8.6 || ^8.7 || ^8.8 || ^8.9 || ^9.0 || ^9.1 || ^9.2 || ^9.3 || ^9.4 || ^10.0 || ^10.1 || ^10.2 || ^10.3 || ^10.4 || ^10.5 || ^10.6 || ^10.7 || ^10.8 || ^10.9 || ^11.0",
+        "laravel/framework": "^11.0|^12.0 |^13.0 |^14.0 |^15.0 |^16.0",
+        "laravel/sanctum": "^4.0 || ^5.0 || ^6.0 || ^7.0 || ^8.0 || ^9.0"
+    },
+    "suggest": {
+        "laravel/reverb": "Required for real-time WebSocket broadcasting via Reverb.",
+        "pusher/pusher-php-server": "Required if using Pusher as broadcast driver.",
+        "kreait/laravel-firebase": "Required for FCM push notifications."
     },
     "require-dev": {
         "orchestra/testbench": "^9.0",
-        "pestphp/pest": "^2.0",
-        "pestphp/pest-plugin-laravel": "^2.0",
+        "pestphp/pest": "^3.8",
+        "pestphp/pest-plugin-laravel": "^3.2",
         "mockery/mockery": "^1.6"
     },
     "autoload": {
@@ -64,7 +68,10 @@
         }
     },
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
     },
     "minimum-stability": "stable",
     "prefer-stable": true

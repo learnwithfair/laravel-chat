@@ -1,4 +1,5 @@
 <?php
+
 namespace RahatulRabbi\LaravelChat\Commands;
 
 use Illuminate\Console\Command;
@@ -17,77 +18,74 @@ class InstallChatCommand extends Command
 
     public function handle(): int
     {
-        $this->displayBanner();
+        $this->line('');
+        $this->line('  Laravel Chat Package - Installation Wizard');
+        $this->line('  by Rahatul Rabbi  |  v1.0.0');
+        $this->line('  ----------------------------------------');
+        $this->line('');
 
-        // ── Step 1: Publish config ──────────────────────────────────────────
-        $this->step('Publishing configuration file...');
-        Artisan::call('vendor:publish', [
-            '--tag'   => 'laravel-chat-config',
-            '--force' => $this->option('force'),
-        ]);
-        $this->line('  <fg=green>✓</> Config published → <fg=cyan>config/laravel-chat.php</>');
+        $this->publishConfig();
+        $this->publishMigrations();
+        $this->publishStubs();
 
-        // ── Step 2: Publish migrations ──────────────────────────────────────
-        $this->step('Publishing database migrations...');
-        Artisan::call('vendor:publish', [
-            '--tag'   => 'laravel-chat-migrations',
-            '--force' => $this->option('force'),
-        ]);
-        $this->line('  <fg=green>✓</> Migrations published → <fg=cyan>database/migrations/</>');
-
-        // ── Step 3: Publish stubs ──────────────────────────────────────────
-        $this->step('Publishing stubs for customization...');
-        Artisan::call('vendor:publish', [
-            '--tag'   => 'laravel-chat-stubs',
-            '--force' => $this->option('force'),
-        ]);
-        $this->line('  <fg=green>✓</> Stubs published → <fg=cyan>stubs/laravel-chat/</>');
-
-        // ── Step 4: Configure broadcaster ─────────────────────────────────
-        $broadcaster = $this->option('broadcaster');
-        $broadcaster = $this->chooseBroadcaster($broadcaster);
+        $broadcaster = $this->resolveBroadcaster();
         $this->configureBroadcaster($broadcaster);
-
-        // ── Step 5: Configure .env ─────────────────────────────────────────
-        $this->step('Writing environment variables...');
         $this->writeEnvVariables($broadcaster);
 
-        // ── Step 6: Run migrations ─────────────────────────────────────────
         if (! $this->option('no-migrate')) {
-            if ($this->confirm('  Run database migrations now?', true)) {
-                $this->step('Running migrations...');
-                Artisan::call('migrate', [], $this->output);
-                $this->line('  <fg=green>✓</> Migrations completed');
-            }
+            $this->runMigrations();
         }
 
-        // ── Step 7: Push notification setup ───────────────────────────────
         if (! $this->option('no-push')) {
             $this->configurePushNotifications();
         }
 
-        // ── Step 8: User model guidance ────────────────────────────────────
-        $this->showUserModelInstructions();
-
-        // ── Step 9: Schedule setup ─────────────────────────────────────────
-        $this->showSchedulerInstructions();
-
-        // ── Done ───────────────────────────────────────────────────────────
-        $this->displaySuccess();
+        $this->showPostInstallInstructions();
 
         return self::SUCCESS;
     }
 
-    protected function chooseBroadcaster(string $default): string
+    protected function publishConfig(): void
     {
+        $this->info('  [1/3] Publishing configuration...');
+        Artisan::call('vendor:publish', [
+            '--tag'   => 'laravel-chat-config',
+            '--force' => $this->option('force'),
+        ]);
+        $this->line('        Published: config/laravel-chat.php');
+    }
+
+    protected function publishMigrations(): void
+    {
+        $this->info('  [2/3] Publishing migrations...');
+        Artisan::call('vendor:publish', [
+            '--tag'   => 'laravel-chat-migrations',
+            '--force' => $this->option('force'),
+        ]);
+        $this->line('        Published: database/migrations/');
+    }
+
+    protected function publishStubs(): void
+    {
+        $this->info('  [3/3] Publishing stubs...');
+        Artisan::call('vendor:publish', [
+            '--tag'   => 'laravel-chat-stubs',
+            '--force' => $this->option('force'),
+        ]);
+        $this->line('        Published: stubs/laravel-chat/');
+    }
+
+    protected function resolveBroadcaster(): string
+    {
+        $driver  = $this->option('broadcaster');
         $options = ['reverb', 'pusher', 'ably', 'log', 'null'];
 
-        if (in_array($default, $options)) {
-            return $default;
+        if (in_array($driver, $options, true)) {
+            return $driver;
         }
 
         return $this->choice(
-            '  <question> Which broadcasting driver would you like to use? </question>',
+            '  Which broadcasting driver do you want to use?',
             $options,
             0
         );
@@ -95,46 +93,51 @@ class InstallChatCommand extends Command
 
     protected function configureBroadcaster(string $broadcaster): void
     {
-        $this->step("Configuring broadcaster: <fg=yellow>{$broadcaster}</>");
+        $this->line('');
+        $this->info("  Broadcaster: {$broadcaster}");
 
         match ($broadcaster) {
             'reverb' => $this->configureReverb(),
             'pusher' => $this->configurePusher(),
             'ably'   => $this->configureAbly(),
-            default  => $this->line("  <fg=yellow>⚠</> Using '{$broadcaster}' driver — no extra config needed."),
+            default  => $this->line("  Using '{$broadcaster}' driver - no additional packages required."),
         };
     }
 
     protected function configureReverb(): void
     {
         if (! class_exists(\Laravel\Reverb\ReverbServiceProvider::class)) {
-            $this->line('  <fg=yellow>⚠</> Laravel Reverb not found. Installing...');
-            $this->line('  Run: <fg=cyan>composer require laravel/reverb</>');
-            $this->line('  Then: <fg=cyan>php artisan reverb:install</>');
+            $this->warn('  Laravel Reverb not found. Install it with:');
+            $this->line('    composer require laravel/reverb');
+            $this->line('    php artisan reverb:install');
         } else {
-            $this->line('  <fg=green>✓</> Laravel Reverb detected.');
+            $this->line('  Laravel Reverb is installed.');
         }
-        $this->line('  Start server: <fg=cyan>php artisan reverb:start --debug</>');
+        $this->line('  Start server: php artisan reverb:start --debug');
     }
 
     protected function configurePusher(): void
     {
-        $this->line('  <fg=yellow>⚠</> Pusher requires: <fg=cyan>composer require pusher/pusher-php-server</>');
+        $this->warn('  Pusher requires the following package:');
+        $this->line('    composer require pusher/pusher-php-server');
         $this->line('  Set PUSHER_APP_ID, PUSHER_APP_KEY, PUSHER_APP_SECRET, PUSHER_APP_CLUSTER in .env');
     }
 
     protected function configureAbly(): void
     {
-        $this->line('  <fg=yellow>⚠</> Ably requires: <fg=cyan>composer require ably/ably-php</>');
+        $this->warn('  Ably requires the following package:');
+        $this->line('    composer require ably/ably-php');
         $this->line('  Set ABLY_KEY in .env');
     }
 
     protected function writeEnvVariables(string $broadcaster): void
     {
-        $envPath = base_path('.env');
+        $this->line('');
+        $this->info('  Writing .env variables...');
 
+        $envPath = base_path('.env');
         if (! File::exists($envPath)) {
-            $this->warn('  .env file not found. Skipping env write.');
+            $this->warn('  .env file not found - skipping.');
             return;
         }
 
@@ -149,10 +152,12 @@ class InstallChatCommand extends Command
             }
         }
 
-        if (! empty($added)) {
-            $this->line('  <fg=green>✓</> Added to .env: ' . implode(', ', $added));
+        if (empty($added)) {
+            $this->line('  All variables already present in .env');
         } else {
-            $this->line('  <fg=blue>ℹ</> All env variables already present.');
+            foreach ($added as $key) {
+                $this->line("  Added: {$key}");
+            }
         }
     }
 
@@ -165,22 +170,22 @@ class InstallChatCommand extends Command
             'CHAT_PUSH_NOTIFICATIONS' => 'false',
             'CHAT_QUEUE_CONNECTION'   => 'sync',
             'CHAT_QUEUE_NAME'         => 'chat',
-            'CHAT_INVITE_URL'         => '"${APP_URL}/api/v1/accept-invite"',
+            'CHAT_INVITE_URL'         => '${APP_URL}/api/v1/accept-invite',
         ];
 
         $broadcasterEnv = match ($broadcaster) {
             'reverb' => [
-                'BROADCAST_DRIVER'    => 'reverb',
-                'REVERB_APP_ID'       => 'laravel-chat-app',
-                'REVERB_APP_KEY'      => 'laravel-chat-key',
-                'REVERB_APP_SECRET'   => 'laravel-chat-secret',
-                'REVERB_HOST'         => '127.0.0.1',
-                'REVERB_PORT'         => '8080',
-                'REVERB_SCHEME'       => 'http',
-                'VITE_REVERB_APP_KEY' => '"${REVERB_APP_KEY}"',
-                'VITE_REVERB_HOST'    => '"${REVERB_HOST}"',
-                'VITE_REVERB_PORT'    => '"${REVERB_PORT}"',
-                'VITE_REVERB_SCHEME'  => '"${REVERB_SCHEME}"',
+                'BROADCAST_DRIVER'     => 'reverb',
+                'REVERB_APP_ID'        => 'laravel-chat-app',
+                'REVERB_APP_KEY'       => 'laravel-chat-key',
+                'REVERB_APP_SECRET'    => 'laravel-chat-secret',
+                'REVERB_HOST'          => '127.0.0.1',
+                'REVERB_PORT'          => '8080',
+                'REVERB_SCHEME'        => 'http',
+                'VITE_REVERB_APP_KEY'  => '${REVERB_APP_KEY}',
+                'VITE_REVERB_HOST'     => '${REVERB_HOST}',
+                'VITE_REVERB_PORT'     => '${REVERB_PORT}',
+                'VITE_REVERB_SCHEME'   => '${REVERB_SCHEME}',
             ],
             'pusher' => [
                 'BROADCAST_DRIVER'        => 'pusher',
@@ -188,8 +193,8 @@ class InstallChatCommand extends Command
                 'PUSHER_APP_KEY'          => '',
                 'PUSHER_APP_SECRET'       => '',
                 'PUSHER_APP_CLUSTER'      => 'mt1',
-                'VITE_PUSHER_APP_KEY'     => '"${PUSHER_APP_KEY}"',
-                'VITE_PUSHER_APP_CLUSTER' => '"${PUSHER_APP_CLUSTER}"',
+                'VITE_PUSHER_APP_KEY'     => '${PUSHER_APP_KEY}',
+                'VITE_PUSHER_APP_CLUSTER' => '${PUSHER_APP_CLUSTER}',
             ],
             default  => ['BROADCAST_DRIVER' => $broadcaster],
         };
@@ -197,90 +202,67 @@ class InstallChatCommand extends Command
         return array_merge($base, $broadcasterEnv);
     }
 
-    protected function configurePushNotifications(): void
+    protected function runMigrations(): void
     {
-        if ($this->confirm('  Enable FCM push notifications?', false)) {
-            $this->writeToEnv('CHAT_PUSH_NOTIFICATIONS', 'true');
-            $this->line('  <fg=green>✓</> Push notifications enabled.');
-            $this->line('  Place your Firebase service account JSON at:');
-            $this->line('    <fg=cyan>storage/app/firebase/service-account.json</>');
-            $this->line('  Then run: <fg=cyan>php artisan vendor:publish --tag=laravel-firebase</>');
+        $this->line('');
+        if ($this->confirm('  Run database migrations now?', true)) {
+            $this->info('  Running migrations...');
+            Artisan::call('migrate', [], $this->output);
+            $this->line('  Migrations complete.');
         }
     }
 
-    protected function showUserModelInstructions(): void
+    protected function configurePushNotifications(): void
     {
-        $this->newLine();
-        $this->line('  <fg=yellow>◆</> <options=bold>User Model Setup</>');
-        $this->line('  Open <fg=cyan>config/laravel-chat.php</> and update:');
         $this->line('');
-        $this->line("  <fg=gray>'user_model'  => \\App\\Models\\User::class,</>");
-        $this->line("  <fg=gray>'user_fields' => [");
-        $this->line("      'avatar'    => 'avatar_path',   // your column name");
-        $this->line("      'last_seen' => 'last_seen_at',  // your column name");
-        $this->line("  ],</>");
-        $this->newLine();
-        $this->line('  Add the <fg=cyan>UpdateLastSeen</> middleware alias in <fg=cyan>bootstrap/app.php</>:');
-        $this->line("  <fg=gray>\$middleware->alias(['last_seen' => \\RahatulRabbi\\LaravelChat\\Http\\Middleware\\UpdateLastSeen::class]);</>");
+        if ($this->confirm('  Enable FCM push notifications?', false)) {
+            $this->setEnvValue('CHAT_PUSH_NOTIFICATIONS', 'true');
+            $this->line('  Push notifications enabled.');
+            $this->line('  Place Firebase service account at:');
+            $this->line('    storage/app/firebase/service-account.json');
+            $this->line('  Then run: php artisan vendor:publish --tag=laravel-firebase');
+        }
     }
 
-    protected function showSchedulerInstructions(): void
+    protected function showPostInstallInstructions(): void
     {
-        $this->newLine();
-        $this->line('  <fg=yellow>◆</> <options=bold>Scheduler Setup (for auto-unmute)</>');
-        $this->line('  Add to your <fg=cyan>bootstrap/app.php</> withSchedule:');
         $this->line('');
-        $this->line("  <fg=gray>\$schedule->command('chat:auto-unmute')->everyMinute();</>");
-        $this->newLine();
-        $this->line('  Or add to your Crontab:');
-        $this->line('  <fg=gray>* * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1</>');
+        $this->line('  ----------------------------------------');
+        $this->info('  Installation complete.');
+        $this->line('  ----------------------------------------');
+        $this->line('');
+        $this->line('  Next steps:');
+        $this->line('');
+        $this->line('  1. Update user field mapping in config/laravel-chat.php:');
+        $this->line('       "user_fields" => ["avatar" => "your_avatar_column"]');
+        $this->line('');
+        $this->line('  2. Add middleware alias to bootstrap/app.php:');
+        $this->line('       $middleware->alias([');
+        $this->line("         'last_seen' => \\RahatulRabbi\\LaravelChat\\Http\\Middleware\\UpdateLastSeen::class,");
+        $this->line('       ]);');
+        $this->line('');
+        $this->line('  3. Add scheduler to bootstrap/app.php:');
+        $this->line("       \$schedule->command('chat:auto-unmute')->everyMinute();");
+        $this->line('');
+        $this->line('  4. Start WebSocket server:');
+        $this->line('       php artisan reverb:start --debug');
+        $this->line('');
+        $this->line('  5. Add Cron entry for scheduler:');
+        $this->line('       * * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1');
+        $this->line('');
+        $this->line('  Full documentation: https://github.com/rahatulrabbi/laravel-chat');
+        $this->line('');
     }
 
-    protected function writeToEnv(string $key, string $value): void
+    protected function setEnvValue(string $key, string $value): void
     {
         $envPath  = base_path('.env');
         $existing = File::get($envPath);
 
         if (str_contains($existing, $key . '=')) {
-            File::put($envPath, preg_replace(
-                "/^{$key}=.*/m",
-                "{$key}={$value}",
-                $existing
-            ));
+            File::put($envPath, preg_replace("/^{$key}=.*/m", "{$key}={$value}", $existing));
         } else {
             File::append($envPath, "\n{$key}={$value}");
         }
-    }
-
-    protected function displayBanner(): void
-    {
-        $this->newLine();
-        $this->line('  <fg=blue>╔═══════════════════════════════════════════════╗</>');
-        $this->line('  <fg=blue>║</>   <options=bold>🚀  Laravel Chat Package — Installer</>       <fg=blue>║</>');
-        $this->line('  <fg=blue>║</>   <fg=gray>by Rahatul Rabbi  •  v1.0.0</>               <fg=blue>║</>');
-        $this->line('  <fg=blue>╚═══════════════════════════════════════════════╝</>');
-        $this->newLine();
-    }
-
-    protected function displaySuccess(): void
-    {
-        $this->newLine();
-        $this->line('  <fg=green>╔══════════════════════════════════════════╗</>');
-        $this->line('  <fg=green>║</>  <options=bold>✅  Installation Complete!</>             <fg=green>║</>');
-        $this->line('  <fg=green>╚══════════════════════════════════════════╝</>');
-        $this->newLine();
-        $this->line('  Next steps:');
-        $this->line('  1. Review <fg=cyan>config/laravel-chat.php</>');
-        $this->line('  2. Update <fg=cyan>user_fields</> mapping');
-        $this->line('  3. Run <fg=cyan>php artisan migrate</> (if skipped)');
-        $this->line('  4. Start WebSocket: <fg=cyan>php artisan reverb:start</>');
-        $this->line('  5. See full docs: <fg=cyan>https://github.com/rahatulrabbi/laravel-chat</>');
-        $this->newLine();
-    }
-
-    protected function step(string $message): void
-    {
-        $this->newLine();
-        $this->line("  <fg=blue>▶</> {$message}");
     }
 }

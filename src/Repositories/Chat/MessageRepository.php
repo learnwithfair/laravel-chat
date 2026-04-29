@@ -1,0 +1,350 @@
+<?php
+
+namespace RahatulRabbi\LaravelChat\Repositories\Chat;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Str;
+use RahatulRabbi\LaravelChat\Events\ConversationEvent;
+use RahatulRabbi\LaravelChat\Events\MessageEvent;
+use RahatulRabbi\LaravelChat\Http\Resources\Chat\ConversationResource;
+use RahatulRabbi\LaravelChat\Http\Resources\Chat\MediaLibraryResource;
+use RahatulRabbi\LaravelChat\Http\Resources\Chat\MessageResource;
+use RahatulRabbi\LaravelChat\Jobs\SendPushNotificationJob;
+use RahatulRabbi\LaravelChat\Models\Conversation;
+use RahatulRabbi\LaravelChat\Models\ConversationParticipant;
+use RahatulRabbi\LaravelChat\Models\Message;
+use RahatulRabbi\LaravelChat\Models\MessageAttachment;
+use RahatulRabbi\LaravelChat\Models\MessageStatus;
+use RahatulRabbi\LaravelChat\Traits\ApiResponse;
+
+class MessageRepository
+{
+    use ApiResponse;
+
+    protected function messageWith(): array
+    {
+        return [
+            'sender:id,name',
+            'reactions',
+            'attachments',
+            'statuses',
+            'replyTo.sender:id,name',
+            'forwardedFrom.sender:id,name',
+            'forwardedFrom.conversation:id,name,type',
+        ];
+    }
+
+    public function getByConversation(Model $user, int $conversationId, ?string $query = null, int $perPage = 20)
+    {
+        $participant = ConversationParticipant::where('conversation_id', $conversationId)
+            ->where('user_id', $user->id)->active()->firstOrFail();
+
+        $messages = Message::where('conversation_id', $conversationId)
+            ->when($participant->last_deleted_message_id, fn($q) => $q->where('id', '>', $participant->last_deleted_message_id))
+            ->whereDoesntHave('deletions', fn($q) => $q->where('user_id', $user->id))
+            ->when($query, fn($q) => $q->where('message', 'like', "%{$query}%"))
+            ->with($this->messageWith())
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        return MessageResource::collection($messages);
+    }
+
+    public function getPinnedByConversation(Model $user, int $conversationId, ?string $query = null, int $perPage = 40)
+    {
+        $participant = ConversationParticipant::where('conversation_id', $conversationId)
+            ->where('user_id', $user->id)->active()->firstOrFail();
+
+        $messages = Message::where('conversation_id', $conversationId)
+            ->pinned()
+            ->when($participant->last_deleted_message_id, fn($q) => $q->where('id', '>', $participant->last_deleted_message_id))
+            ->whereDoesntHave('deletions', fn($q) => $q->where('user_id', $user->id))
+            ->when($query, fn($q) => $q->where('message', 'like', "%{$query}%"))
+            ->with($this->messageWith())
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        return MessageResource::collection($messages);
+    }
+
+    public function find(int $messageId): ?Message
+    {
+        return Message::with(['sender', 'reactions', 'attachments'])->find($messageId);
+    }
+
+    public function mediaLibrary(Model $user, int $conversationId, int $perPage)
+    {
+        $participant = ConversationParticipant::where('conversation_id', $conversationId)
+            ->where('user_id', $user->id)->active()->firstOrFail();
+
+        $attachments = MessageAttachment::whereHas('message', function ($q) use ($conversationId, $participant, $user) {
+            $q->where('conversation_id', $conversationId)
+              ->when($participant->last_deleted_message_id, fn($q) => $q->where('id', '>', $participant->last_deleted_message_id))
+              ->whereDoesntHave('deletions', fn($q) => $q->where('user_id', $user->id));
+        })->latest()->paginate($perPage);
+
+        $links = $this->extractConversationLinks($conversationId, $participant->last_deleted_message_id, $user->id);
+
+        return new MediaLibraryResource([
+            'media'      => $attachments->whereIn('type', ['image', 'video'])->values(),
+            'audio'      => $attachments->where('type', 'audio')->values(),
+            'files'      => $attachments->whereNotIn('type', ['image', 'video', 'audio'])->values(),
+            'links'      => $links,
+            'pagination' => [
+                'current_page' => $attachments->currentPage(),
+                'last_page'    => $attachments->lastPage(),
+                'per_page'     => $attachments->perPage(),
+                'total'        => $attachments->total(),
+            ],
+        ]);
+    }
+
+    public function storeMessage(Model $user, array $data)
+    {
+        if (empty($data['conversation_id']) && ! empty($data['receiver_id'])) {
+            $service = app(\RahatulRabbi\LaravelChat\Services\ChatService::class);
+            $data['conversation_id'] = $service->startConversation($user, $data['receiver_id'])->id;
+        }
+
+        $participant = ConversationParticipant::where('conversation_id', $data['conversation_id'])
+            ->where('user_id', $user->id)->active()->first();
+
+        if (! $participant) {
+            throw new HttpResponseException($this->error(null, 'You are not a member of this conversation.', 403));
+        }
+
+        $conversation = Conversation::findOrFail($data['conversation_id']);
+
+        if ($conversation->type === 'private' && $conversation->otherParticipant($user)?->hasBlocked($user)) {
+            throw new HttpResponseException($this->error(null, 'You cannot send messages to this user.', 403));
+        }
+
+        if (! $conversation->canUserSendMessage($participant)) {
+            throw new HttpResponseException($this->error(null, 'You are not allowed to send messages.', 403));
+        }
+
+        $hadMessagesBefore = Message::where('conversation_id', $conversation->id)->lockForUpdate()->exists();
+
+        $message = Message::create([
+            'conversation_id'       => $data['conversation_id'],
+            'sender_id'             => $user->id,
+            'receiver_id'           => $data['receiver_id'] ?? null,
+            'message'               => $data['message'] ?? null,
+            'message_type'          => $data['message_type'] ?? 'text',
+            'reply_to_message_id'   => $data['reply_to_message_id'] ?? null,
+            'forward_to_message_id' => $data['forward_to_message_id'] ?? null,
+            'is_restricted'         => ! empty($data['receiver_id']) &&
+                $user->restrictedByUsers()->where('users.id', $data['receiver_id'])->exists(),
+        ]);
+
+        if (! empty($data['forward_to_message_id'])) {
+            $this->cloneAttachments(Message::findOrFail($data['forward_to_message_id']), $message);
+        } elseif (! empty($data['attachments'])) {
+            foreach ($data['attachments'] as $file) {
+                $uploadedFile  = $file['path'];
+                $originalName  = $uploadedFile->getClientOriginalName();
+                $mediaPath     = chat_upload_file($uploadedFile, config('laravel-chat.uploads.message_path'), (string) Str::uuid());
+                $message->attachments()->create([
+                    'path' => $mediaPath,
+                    'type' => chat_get_file_type($mediaPath),
+                    'name' => $originalName,
+                    'size' => $mediaPath && file_exists(public_path($mediaPath)) ? filesize(public_path($mediaPath)) : null,
+                ]);
+            }
+        }
+
+        $participant->update(['last_read_message_id' => $message->id]);
+
+        $deletedParticipants = ConversationParticipant::where('conversation_id', $conversation->id)
+            ->whereNotNull('deleted_at')->get(['id', 'user_id']);
+
+        if ($deletedParticipants->isNotEmpty()) {
+            ConversationParticipant::whereIn('id', $deletedParticipants->pluck('id'))
+                ->update(['is_active' => true, 'deleted_at' => null]);
+        }
+
+        $participantIds = ConversationParticipant::where('conversation_id', $conversation->id)->active()->pluck('user_id');
+        $now            = now();
+
+        MessageStatus::insert($participantIds->map(fn($uid) => [
+            'message_id' => $message->id,
+            'user_id'    => $uid,
+            'status'     => $uid === $user->id ? 'seen' : 'sent',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->toArray());
+
+        $conversation->touch();
+
+        if (config('laravel-chat.push_notifications.enabled', false)) {
+            $this->sendPushNotification($conversation, $message, $user);
+        }
+
+        $message->load($this->messageWith());
+
+        if ($deletedParticipants->isNotEmpty()) {
+            $conversation->fresh()->load(['participants.user', 'lastMessage.sender', 'lastMessage.attachments', 'creator:id,name', 'groupSetting', 'activeInvites']);
+            $userModel = config('laravel-chat.user_model');
+
+            foreach ($deletedParticipants as $p) {
+                $targetUser           = $userModel::find($p->user_id);
+                $conversationResource = (new ConversationResource($conversation))->forUser($targetUser)->toArray(request());
+                event(new ConversationEvent($conversation, 'added', $p->user_id, $conversationResource));
+            }
+        }
+
+        if ($conversation->type === 'private' && ! $hadMessagesBefore) {
+            $receiver = $conversation->otherParticipant($user);
+
+            if ($receiver) {
+                $conversation->load(['participants.user', 'lastMessage.sender', 'lastMessage.attachments', 'creator:id,name', 'groupSetting', 'activeInvites']);
+                $conversationResource = (new ConversationResource($conversation))->forUser($receiver)->toArray(request());
+                event(new ConversationEvent($conversation, 'added', $receiver->id, $conversationResource));
+            }
+        }
+
+        return new MessageResource($message);
+    }
+
+    public function updateMessage(Model $user, array $data, Message $message)
+    {
+        if ($message->sender_id !== $user->id) {
+            throw new HttpResponseException($this->error(null, 'You are not allowed to edit this message.', 403));
+        }
+
+        $data['edited_at'] = now();
+        $message->update($data);
+        $message->load($this->messageWith());
+
+        return new MessageResource($message);
+    }
+
+    public function deleteMessagesForUser(int $userId, array $messageIds): string
+    {
+        $messages = Message::whereIn('id', $messageIds)->get();
+
+        foreach ($messages as $message) {
+            $message->deletions()->firstOrCreate(['user_id' => $userId]);
+        }
+
+        return 'Messages deleted for you.';
+    }
+
+    public function deleteMessagesForEveryone(int $userId, array $messageIds): string
+    {
+        $messages = Message::whereIn('id', $messageIds)->get();
+
+        foreach ($messages as $message) {
+            if ($message->sender_id !== $userId) {
+                throw new HttpResponseException($this->error(null, 'You can only delete your own messages.', 403));
+            }
+
+            if ($message->is_deleted_for_everyone && $message->message === config('laravel-chat.messages.unsent_placeholder', 'Unsent')) {
+                $conversationId = $message->conversation_id;
+                $deletedId      = $message->id;
+                $message->delete();
+                broadcast(new MessageEvent('deleted_permanent', $conversationId, ['message_id' => $deletedId]));
+                continue;
+            }
+
+            $message->update([
+                'is_deleted_for_everyone' => true,
+                'message'                 => config('laravel-chat.messages.unsent_placeholder', 'Unsent'),
+                'is_pinned'               => false,
+            ]);
+
+            chat_delete_files($message->attachments->pluck('path')->toArray());
+            $message->attachments()->delete();
+
+            broadcast(new MessageEvent('deleted_for_everyone', $message->conversation_id, $message->toArray()));
+            broadcast(new MessageEvent('unpinned', $message->conversation_id, $message->toArray()));
+        }
+
+        return 'Messages deleted for everyone.';
+    }
+
+    protected function cloneAttachments(Message $from, Message $to): void
+    {
+        if (! $from->relationLoaded('attachments')) {
+            $from->load('attachments');
+        }
+
+        if ($from->attachments->isEmpty()) {
+            return;
+        }
+
+        $rows = [];
+        foreach ($from->attachments as $file) {
+            $rows[] = [
+                'message_id' => $to->id,
+                'path'       => $file->path,
+                'type'       => $file->type,
+                'name'       => $file->name,
+                'size'       => $file->size,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        MessageAttachment::insert($rows);
+    }
+
+    protected function sendPushNotification(Conversation $conversation, Message $message, Model $sender): void
+    {
+        $participants = ConversationParticipant::where('conversation_id', $conversation->id)
+            ->active()->unmuted()->with('user.deviceTokens')->get();
+
+        $connection = config('laravel-chat.queue.connection');
+        $queue      = config('laravel-chat.queue.name');
+
+        foreach ($participants as $participant) {
+            if ($participant->user_id === $sender->id) continue;
+
+            $tokens = $participant->user?->deviceTokens->pluck('token')->filter()->toArray();
+            if (empty($tokens)) continue;
+
+            $title = $sender->name ?? 'New Message';
+            $body  = $message->message_type === 'text' ? ($message->message ?: 'New message') : 'Sent an attachment';
+
+            SendPushNotificationJob::dispatch(
+                $tokens,
+                $participant->user_id,
+                $title,
+                $body,
+                [
+                    'type'            => 'chat_message',
+                    'conversation_id' => (string) $conversation->id,
+                    'message_id'      => (string) $message->id,
+                    'sender_id'       => (string) $sender->id,
+                ],
+                null,
+                false
+            )->onConnection($connection)->onQueue($queue)->afterCommit();
+        }
+    }
+
+    private function extractConversationLinks(int $conversationId, ?int $lastDeletedMessageId, int $userId): array
+    {
+        $messages = Message::where('conversation_id', $conversationId)
+            ->whereNotNull('message')
+            ->whereIn('message_type', ['text', 'multiple'])
+            ->when($lastDeletedMessageId, fn($q) => $q->where('id', '>', $lastDeletedMessageId))
+            ->whereDoesntHave('deletions', fn($q) => $q->where('user_id', $userId))
+            ->select('id', 'message', 'created_at')
+            ->latest()
+            ->get();
+
+        $links = [];
+
+        foreach ($messages as $message) {
+            preg_match_all('/https?:\/\/[^\s\)\]\}\>,"]+/i', $message->message, $matches);
+
+            foreach (array_unique($matches[0] ?? []) as $url) {
+                $links[] = ['message_id' => $message->id, 'url' => $url, 'created_at' => $message->created_at];
+            }
+        }
+
+        return $links;
+    }
+}

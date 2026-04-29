@@ -1,8 +1,6 @@
 /vendor
 /node_modules
-/.phpunit.cache
-/build
-composer.lock
-.env
+/.phpunit.result.cache
+/composer.lock
+*.log
 .DS_Store
-Thumbs.db
