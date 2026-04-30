@@ -2,38 +2,37 @@
 
 namespace RahatulRabbi\LaravelChat;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
-use RahatulRabbi\LaravelChat\Commands\InstallChatCommand;
-use RahatulRabbi\LaravelChat\Commands\UninstallChatCommand;
-use RahatulRabbi\LaravelChat\Commands\PublishChatCommand;
 use RahatulRabbi\LaravelChat\Commands\AutoUnmuteCommand;
+use RahatulRabbi\LaravelChat\Commands\InstallChatCommand;
+use RahatulRabbi\LaravelChat\Commands\PublishChatCommand;
+use RahatulRabbi\LaravelChat\Commands\UninstallChatCommand;
+use RahatulRabbi\LaravelChat\Http\Middleware\UpdateLastSeen;
 
 class LaravelChatServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(
-            __DIR__ . '/../config/laravel-chat.php',
-            'laravel-chat'
-        );
+        $this->mergeConfigFrom(__DIR__ . '/../config/laravel-chat.php', 'laravel-chat');
 
-        $this->app->singleton(
-            \RahatulRabbi\LaravelChat\Services\ChatService::class
-        );
+        $this->app->singleton(\RahatulRabbi\LaravelChat\Services\ChatService::class);
     }
 
     public function boot(): void
     {
         $this->registerPublishables();
-        $this->loadMigrations();
-        $this->loadRoutes();
-        $this->loadTranslations();
-        $this->registerCommands();
-        $this->registerChannels();
+        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+        $this->loadTranslationsFrom(__DIR__ . '/../lang', 'laravel-chat');
+        $this->registerRoutes();
         $this->registerMiddlewareAlias();
         $this->registerScheduler();
+        $this->registerBroadcastChannels();
+        $this->registerCommands();
     }
+
+    // -------------------------------------------------------------------------
 
     protected function registerPublishables(): void
     {
@@ -62,25 +61,50 @@ class LaravelChatServiceProvider extends ServiceProvider
         ], 'laravel-chat');
     }
 
-    protected function loadMigrations(): void
-    {
-        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
-    }
-
-    protected function loadRoutes(): void
+    /**
+     * Register API routes automatically.
+     * No manual bootstrap/app.php edit required.
+     */
+    protected function registerRoutes(): void
     {
         if (! config('laravel-chat.routing.enabled', true)) {
             return;
         }
 
         Route::prefix(config('laravel-chat.routing.prefix', 'api/v1'))
-            ->middleware(config('laravel-chat.routing.middleware', ['api', 'auth:sanctum']))
+            ->middleware(config('laravel-chat.routing.middleware', ['api', 'auth:sanctum', 'laravel-chat.last-seen']))
             ->group(__DIR__ . '/../routes/api.php');
     }
 
-    protected function loadTranslations(): void
+    /**
+     * Register the last-seen middleware alias automatically.
+     * No manual bootstrap/app.php edit required.
+     */
+    protected function registerMiddlewareAlias(): void
     {
-        $this->loadTranslationsFrom(__DIR__ . '/../lang', 'laravel-chat');
+        $this->app['router']->aliasMiddleware('laravel-chat.last-seen', UpdateLastSeen::class);
+    }
+
+    /**
+     * Register the auto-unmute scheduler automatically.
+     * No manual bootstrap/app.php withSchedule() edit required.
+     */
+    protected function registerScheduler(): void
+    {
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            $schedule->command('chat:auto-unmute')->everyMinute()
+                ->withoutOverlapping()
+                ->runInBackground();
+        });
+    }
+
+    /**
+     * Register broadcast channels automatically.
+     * No manual routes/channels.php edit required.
+     */
+    protected function registerBroadcastChannels(): void
+    {
+        require_once __DIR__ . '/../routes/channels.php';
     }
 
     protected function registerCommands(): void
@@ -93,26 +117,5 @@ class LaravelChatServiceProvider extends ServiceProvider
                 AutoUnmuteCommand::class,
             ]);
         }
-    }
-
-    protected function registerChannels(): void
-    {
-        require_once __DIR__ . '/../routes/channels.php';
-    }
-
-    protected function registerMiddlewareAlias(): void
-    {
-        $router = $this->app['router'];
-        $router->aliasMiddleware(
-            'laravel-chat.last-seen',
-            \RahatulRabbi\LaravelChat\Http\Middleware\UpdateLastSeen::class
-        );
-    }
-
-    protected function registerScheduler(): void
-    {
-        $this->callAfterResolving(\Illuminate\Console\Scheduling\Schedule::class, function ($schedule) {
-            $schedule->command('chat:auto-unmute')->everyMinute();
-        });
     }
 }
