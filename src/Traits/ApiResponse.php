@@ -1,6 +1,6 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Traits;
+namespace RahatulRabbi\TalkBridge\Traits;
 
 trait ApiResponse
 {

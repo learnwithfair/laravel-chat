@@ -1,5 +1,5 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Models;
+namespace RahatulRabbi\TalkBridge\Models;
 use Illuminate\Database\Eloquent\Model;
 class ConversationInvite extends Model {
     protected $fillable = ['conversation_id','token','created_by','expires_at','max_uses','used_count','is_active'];

@@ -1,6 +1,6 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Events;
+namespace RahatulRabbi\TalkBridge\Events;
 
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;

@@ -1,8 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Broadcast;
-use RahatulRabbi\LaravelChat\Models\Conversation;
-use RahatulRabbi\LaravelChat\Models\ConversationParticipant;
+use RahatulRabbi\TalkBridge\Models\Conversation;
+use RahatulRabbi\TalkBridge\Models\ConversationParticipant;
 
 $avatarField = config('laravel-chat.user_fields.avatar', 'avatar_path');
 

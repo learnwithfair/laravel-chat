@@ -1,6 +1,6 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Models;
+namespace RahatulRabbi\TalkBridge\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;

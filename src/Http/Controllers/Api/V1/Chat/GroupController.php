@@ -1,15 +1,15 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Http\Controllers\Api\V1\Chat;
+namespace RahatulRabbi\TalkBridge\Http\Controllers\Api\V1\Chat;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
-use RahatulRabbi\LaravelChat\Http\Requests\Chat\CreateInviteRequest;
-use RahatulRabbi\LaravelChat\Http\Requests\Chat\ManageGroupAdminRequest;
-use RahatulRabbi\LaravelChat\Http\Requests\Chat\UpdateGroupInfoRequest;
-use RahatulRabbi\LaravelChat\Services\ChatService;
-use RahatulRabbi\LaravelChat\Traits\ApiResponse;
+use RahatulRabbi\TalkBridge\Http\Requests\Chat\CreateInviteRequest;
+use RahatulRabbi\TalkBridge\Http\Requests\Chat\ManageGroupAdminRequest;
+use RahatulRabbi\TalkBridge\Http\Requests\Chat\UpdateGroupInfoRequest;
+use RahatulRabbi\TalkBridge\Services\ChatService;
+use RahatulRabbi\TalkBridge\Traits\ApiResponse;
 
 class GroupController extends Controller
 {

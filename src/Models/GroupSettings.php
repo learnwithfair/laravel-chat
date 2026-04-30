@@ -1,5 +1,5 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Models;
+namespace RahatulRabbi\TalkBridge\Models;
 use Illuminate\Database\Eloquent\Model;
 class GroupSettings extends Model {
     protected $guarded = [];

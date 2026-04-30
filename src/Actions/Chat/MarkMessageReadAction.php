@@ -1,12 +1,12 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Actions\Chat;
+namespace RahatulRabbi\TalkBridge\Actions\Chat;
 
 use Illuminate\Database\Eloquent\Model;
-use RahatulRabbi\LaravelChat\Events\MessageEvent;
-use RahatulRabbi\LaravelChat\Models\Conversation;
-use RahatulRabbi\LaravelChat\Models\ConversationParticipant;
-use RahatulRabbi\LaravelChat\Models\Message;
-use RahatulRabbi\LaravelChat\Models\MessageStatus;
+use RahatulRabbi\TalkBridge\Events\MessageEvent;
+use RahatulRabbi\TalkBridge\Models\Conversation;
+use RahatulRabbi\TalkBridge\Models\ConversationParticipant;
+use RahatulRabbi\TalkBridge\Models\Message;
+use RahatulRabbi\TalkBridge\Models\MessageStatus;
 
 class MarkMessageReadAction
 {

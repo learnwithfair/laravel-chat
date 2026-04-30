@@ -1,12 +1,12 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Tests;
+namespace RahatulRabbi\TalkBridge\Tests;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
-use RahatulRabbi\LaravelChat\LaravelChatServiceProvider;
-use RahatulRabbi\LaravelChat\Models\Conversation;
-use RahatulRabbi\LaravelChat\Models\ConversationParticipant;
-use RahatulRabbi\LaravelChat\Models\Message;
+use RahatulRabbi\TalkBridge\LaravelChatServiceProvider;
+use RahatulRabbi\TalkBridge\Models\Conversation;
+use RahatulRabbi\TalkBridge\Models\ConversationParticipant;
+use RahatulRabbi\TalkBridge\Models\Message;
 
 abstract class TestCase extends OrchestraTestCase
 {

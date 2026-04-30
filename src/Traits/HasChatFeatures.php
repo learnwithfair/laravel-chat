@@ -1,8 +1,8 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Traits;
+namespace RahatulRabbi\TalkBridge\Traits;
 
-use RahatulRabbi\LaravelChat\Models\DeviceToken;
+use RahatulRabbi\TalkBridge\Models\DeviceToken;
 
 /**
  * HasChatFeatures

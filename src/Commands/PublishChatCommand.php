@@ -1,6 +1,6 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Commands;
+namespace RahatulRabbi\TalkBridge\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;

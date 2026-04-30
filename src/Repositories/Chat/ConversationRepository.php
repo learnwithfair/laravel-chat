@@ -1,18 +1,18 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Repositories\Chat;
+namespace RahatulRabbi\TalkBridge\Repositories\Chat;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Exceptions\HttpResponseException;
-use RahatulRabbi\LaravelChat\Events\ConversationEvent;
-use RahatulRabbi\LaravelChat\Events\MessageEvent;
-use RahatulRabbi\LaravelChat\Http\Resources\Chat\ConversationResource;
-use RahatulRabbi\LaravelChat\Models\Conversation;
-use RahatulRabbi\LaravelChat\Models\ConversationInvite;
-use RahatulRabbi\LaravelChat\Models\ConversationParticipant;
-use RahatulRabbi\LaravelChat\Models\GroupSettings;
-use RahatulRabbi\LaravelChat\Models\Message;
-use RahatulRabbi\LaravelChat\Traits\ApiResponse;
+use RahatulRabbi\TalkBridge\Events\ConversationEvent;
+use RahatulRabbi\TalkBridge\Events\MessageEvent;
+use RahatulRabbi\TalkBridge\Http\Resources\Chat\ConversationResource;
+use RahatulRabbi\TalkBridge\Models\Conversation;
+use RahatulRabbi\TalkBridge\Models\ConversationInvite;
+use RahatulRabbi\TalkBridge\Models\ConversationParticipant;
+use RahatulRabbi\TalkBridge\Models\GroupSettings;
+use RahatulRabbi\TalkBridge\Models\Message;
+use RahatulRabbi\TalkBridge\Traits\ApiResponse;
 use Illuminate\Support\Facades\Auth;
 
 class ConversationRepository

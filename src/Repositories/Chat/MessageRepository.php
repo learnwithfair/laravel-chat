@@ -1,22 +1,22 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Repositories\Chat;
+namespace RahatulRabbi\TalkBridge\Repositories\Chat;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Str;
-use RahatulRabbi\LaravelChat\Events\ConversationEvent;
-use RahatulRabbi\LaravelChat\Events\MessageEvent;
-use RahatulRabbi\LaravelChat\Http\Resources\Chat\ConversationResource;
-use RahatulRabbi\LaravelChat\Http\Resources\Chat\MediaLibraryResource;
-use RahatulRabbi\LaravelChat\Http\Resources\Chat\MessageResource;
-use RahatulRabbi\LaravelChat\Jobs\SendPushNotificationJob;
-use RahatulRabbi\LaravelChat\Models\Conversation;
-use RahatulRabbi\LaravelChat\Models\ConversationParticipant;
-use RahatulRabbi\LaravelChat\Models\Message;
-use RahatulRabbi\LaravelChat\Models\MessageAttachment;
-use RahatulRabbi\LaravelChat\Models\MessageStatus;
-use RahatulRabbi\LaravelChat\Traits\ApiResponse;
+use RahatulRabbi\TalkBridge\Events\ConversationEvent;
+use RahatulRabbi\TalkBridge\Events\MessageEvent;
+use RahatulRabbi\TalkBridge\Http\Resources\Chat\ConversationResource;
+use RahatulRabbi\TalkBridge\Http\Resources\Chat\MediaLibraryResource;
+use RahatulRabbi\TalkBridge\Http\Resources\Chat\MessageResource;
+use RahatulRabbi\TalkBridge\Jobs\SendPushNotificationJob;
+use RahatulRabbi\TalkBridge\Models\Conversation;
+use RahatulRabbi\TalkBridge\Models\ConversationParticipant;
+use RahatulRabbi\TalkBridge\Models\Message;
+use RahatulRabbi\TalkBridge\Models\MessageAttachment;
+use RahatulRabbi\TalkBridge\Models\MessageStatus;
+use RahatulRabbi\TalkBridge\Traits\ApiResponse;
 
 class MessageRepository
 {
@@ -103,7 +103,7 @@ class MessageRepository
     public function storeMessage(Model $user, array $data)
     {
         if (empty($data['conversation_id']) && ! empty($data['receiver_id'])) {
-            $service = app(\RahatulRabbi\LaravelChat\Services\ChatService::class);
+            $service = app(\RahatulRabbi\TalkBridge\Services\ChatService::class);
             $data['conversation_id'] = $service->startConversation($user, $data['receiver_id'])->id;
         }
 

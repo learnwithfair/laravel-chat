@@ -1,11 +1,11 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Commands;
+namespace RahatulRabbi\TalkBridge\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
-use RahatulRabbi\LaravelChat\Support\UserModelModifier;
+use RahatulRabbi\TalkBridge\Support\UserModelModifier;
 
 class UninstallChatCommand extends Command
 {
@@ -248,7 +248,7 @@ class UninstallChatCommand extends Command
         $this->line('    - .env variables');
         $this->newLine();
         $this->line('  To remove the package itself:');
-        $this->line('    composer remove rahatulrabbi/laravel-chat');
+        $this->line('    composer remove rahatulrabbi/talkbridge');
         $this->newLine();
     }
 

@@ -1,13 +1,13 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Events;
+namespace RahatulRabbi\TalkBridge\Events;
 
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Queue\SerializesModels;
-use RahatulRabbi\LaravelChat\Models\Conversation;
+use RahatulRabbi\TalkBridge\Models\Conversation;
 
 class ConversationEvent implements ShouldBroadcastNow
 {

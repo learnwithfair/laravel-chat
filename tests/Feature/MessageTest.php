@@ -1,8 +1,8 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Tests\Feature;
+namespace RahatulRabbi\TalkBridge\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use RahatulRabbi\LaravelChat\Tests\TestCase;
+use RahatulRabbi\TalkBridge\Tests\TestCase;
 
 class MessageTest extends TestCase
 {

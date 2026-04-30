@@ -1,5 +1,5 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Http\Resources\Chat;
+namespace RahatulRabbi\TalkBridge\Http\Resources\Chat;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;

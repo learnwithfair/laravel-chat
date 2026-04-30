@@ -1,9 +1,9 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Actions\Chat;
+namespace RahatulRabbi\TalkBridge\Actions\Chat;
 
 use Illuminate\Database\Eloquent\Model;
-use RahatulRabbi\LaravelChat\Http\Resources\Chat\ConversationResource;
-use RahatulRabbi\LaravelChat\Repositories\Chat\ConversationRepository;
+use RahatulRabbi\TalkBridge\Http\Resources\Chat\ConversationResource;
+use RahatulRabbi\TalkBridge\Repositories\Chat\ConversationRepository;
 
 class CreateConversationAction
 {

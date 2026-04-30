@@ -1,11 +1,11 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use RahatulRabbi\LaravelChat\Http\Controllers\Api\V1\Chat\ConversationController;
-use RahatulRabbi\LaravelChat\Http\Controllers\Api\V1\Chat\MessageController;
-use RahatulRabbi\LaravelChat\Http\Controllers\Api\V1\Chat\GroupController;
-use RahatulRabbi\LaravelChat\Http\Controllers\Api\V1\Chat\ReactionController;
-use RahatulRabbi\LaravelChat\Http\Controllers\Api\V1\Chat\UserBlockController;
+use RahatulRabbi\TalkBridge\Http\Controllers\Api\V1\Chat\ConversationController;
+use RahatulRabbi\TalkBridge\Http\Controllers\Api\V1\Chat\MessageController;
+use RahatulRabbi\TalkBridge\Http\Controllers\Api\V1\Chat\GroupController;
+use RahatulRabbi\TalkBridge\Http\Controllers\Api\V1\Chat\ReactionController;
+use RahatulRabbi\TalkBridge\Http\Controllers\Api\V1\Chat\UserBlockController;
 
 // -------------------------------------------------------------------------
 // Conversations

@@ -1,11 +1,11 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Commands;
+namespace RahatulRabbi\TalkBridge\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
-use RahatulRabbi\LaravelChat\Support\UserModelModifier;
+use RahatulRabbi\TalkBridge\Support\UserModelModifier;
 
 class InstallChatCommand extends Command
 {
@@ -194,7 +194,7 @@ class InstallChatCommand extends Command
 
         if (! $userModelPath) {
             $this->warn('    User model not found at expected path.');
-            $this->warn('    Manually add: use \\RahatulRabbi\\LaravelChat\\Traits\\HasChatFeatures;');
+            $this->warn('    Manually add: use \\RahatulRabbi\\TalkBridge\\Traits\\HasChatFeatures;');
             return;
         }
 
@@ -301,7 +301,7 @@ class InstallChatCommand extends Command
         $this->line('    3. php artisan queue:work --queue=chat');
         $this->newLine();
         $this->line('  To uninstall: php artisan chat:uninstall');
-        $this->line('  Docs: https://github.com/rahatulrabbi/laravel-chat');
+        $this->line('  Docs: https://github.com/rahatulrabbi/talkbridge');
         $this->newLine();
     }
 

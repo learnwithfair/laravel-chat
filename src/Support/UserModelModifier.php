@@ -1,6 +1,6 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Support;
+namespace RahatulRabbi\TalkBridge\Support;
 
 use Illuminate\Support\Facades\File;
 
@@ -13,12 +13,12 @@ use Illuminate\Support\Facades\File;
  *
  * Injection markers allow precise removal on uninstall:
  *   // @laravel-chat:use-start
- *   use \RahatulRabbi\LaravelChat\Traits\HasChatFeatures;
+ *   use \RahatulRabbi\TalkBridge\Traits\HasChatFeatures;
  *   // @laravel-chat:use-end
  */
 class UserModelModifier
 {
-    protected string $traitFqn    = '\\RahatulRabbi\\LaravelChat\\Traits\\HasChatFeatures';
+    protected string $traitFqn    = '\\RahatulRabbi\\TalkBridge\\Traits\\HasChatFeatures';
     protected string $markerStart = '// @laravel-chat:use-start';
     protected string $markerEnd   = '// @laravel-chat:use-end';
 

@@ -1,9 +1,9 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Actions\Chat;
+namespace RahatulRabbi\TalkBridge\Actions\Chat;
 
 use Illuminate\Database\Eloquent\Model;
-use RahatulRabbi\LaravelChat\Models\Message;
-use RahatulRabbi\LaravelChat\Repositories\Chat\MessageRepository;
+use RahatulRabbi\TalkBridge\Models\Message;
+use RahatulRabbi\TalkBridge\Repositories\Chat\MessageRepository;
 
 class SendMessageAction
 {

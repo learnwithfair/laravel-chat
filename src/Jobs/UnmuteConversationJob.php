@@ -1,5 +1,5 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Jobs;
+namespace RahatulRabbi\TalkBridge\Jobs;
 
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
@@ -9,8 +9,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use RahatulRabbi\LaravelChat\Events\ConversationEvent;
-use RahatulRabbi\LaravelChat\Models\Conversation;
+use RahatulRabbi\TalkBridge\Events\ConversationEvent;
+use RahatulRabbi\TalkBridge\Models\Conversation;
 
 class UnmuteConversationJob implements ShouldQueue
 {

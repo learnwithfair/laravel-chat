@@ -1,5 +1,5 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Jobs;
+namespace RahatulRabbi\TalkBridge\Jobs;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;

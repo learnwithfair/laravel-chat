@@ -1,18 +1,18 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Services;
+namespace RahatulRabbi\TalkBridge\Services;
 
 use Illuminate\Database\Eloquent\Model;
-use RahatulRabbi\LaravelChat\Events\MessageEvent;
-use RahatulRabbi\LaravelChat\Models\Message;
-use RahatulRabbi\LaravelChat\Models\MessageReaction;
-use RahatulRabbi\LaravelChat\Models\MessageStatus;
-use RahatulRabbi\LaravelChat\Repositories\Chat\ConversationRepository;
-use RahatulRabbi\LaravelChat\Repositories\Chat\MessageRepository;
-use RahatulRabbi\LaravelChat\Actions\Chat\CreateConversationAction;
-use RahatulRabbi\LaravelChat\Actions\Chat\SendMessageAction;
-use RahatulRabbi\LaravelChat\Actions\Chat\MarkMessageReadAction;
-use RahatulRabbi\LaravelChat\Traits\ApiResponse;
+use RahatulRabbi\TalkBridge\Events\MessageEvent;
+use RahatulRabbi\TalkBridge\Models\Message;
+use RahatulRabbi\TalkBridge\Models\MessageReaction;
+use RahatulRabbi\TalkBridge\Models\MessageStatus;
+use RahatulRabbi\TalkBridge\Repositories\Chat\ConversationRepository;
+use RahatulRabbi\TalkBridge\Repositories\Chat\MessageRepository;
+use RahatulRabbi\TalkBridge\Actions\Chat\CreateConversationAction;
+use RahatulRabbi\TalkBridge\Actions\Chat\SendMessageAction;
+use RahatulRabbi\TalkBridge\Actions\Chat\MarkMessageReadAction;
+use RahatulRabbi\TalkBridge\Traits\ApiResponse;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 class ChatService

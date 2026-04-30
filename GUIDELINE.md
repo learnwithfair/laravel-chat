@@ -1,4 +1,4 @@
-packages/rahatulrabbi/laravel-chat/
+packages/rahatulrabbi/talkbridge/
 ├── composer.json
 ├── LICENSE
 ├── README.md

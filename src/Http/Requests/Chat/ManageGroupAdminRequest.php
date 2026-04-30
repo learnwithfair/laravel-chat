@@ -1,6 +1,6 @@
 <?php
-namespace RahatulRabbi\LaravelChat\Http\Requests\Chat;
-use RahatulRabbi\LaravelChat\Http\Requests\BaseRequest;
+namespace RahatulRabbi\TalkBridge\Http\Requests\Chat;
+use RahatulRabbi\TalkBridge\Http\Requests\BaseRequest;
 class ManageGroupAdminRequest extends BaseRequest {
     public function authorize(): bool { return true; }
     public function rules(): array {

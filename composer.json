@@ -42,7 +42,7 @@
     },
     "autoload": {
         "psr-4": {
-            "RahatulRabbi\\LaravelChat\\": "src/"
+            "RahatulRabbi\\TalkBridge\\": "src/"
         },
         "files": [
             "src/Helpers/helpers.php"
@@ -50,7 +50,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "RahatulRabbi\\LaravelChat\\Tests\\": "tests/"
+            "RahatulRabbi\\TalkBridge\\Tests\\": "tests/"
         }
     },
     "scripts": {
@@ -60,10 +60,10 @@
     "extra": {
         "laravel": {
             "providers": [
-                "RahatulRabbi\\LaravelChat\\LaravelChatServiceProvider"
+                "RahatulRabbi\\TalkBridge\\LaravelChatServiceProvider"
             ],
             "aliases": {
-                "LaravelChat": "RahatulRabbi\\LaravelChat\\Facades\\Chat"
+                "TalkBridge": "RahatulRabbi\\TalkBridge\\Facades\\Chat"
             }
         }
     },

@@ -1,15 +1,15 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat;
+namespace RahatulRabbi\TalkBridge;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
-use RahatulRabbi\LaravelChat\Commands\AutoUnmuteCommand;
-use RahatulRabbi\LaravelChat\Commands\InstallChatCommand;
-use RahatulRabbi\LaravelChat\Commands\PublishChatCommand;
-use RahatulRabbi\LaravelChat\Commands\UninstallChatCommand;
-use RahatulRabbi\LaravelChat\Http\Middleware\UpdateLastSeen;
+use RahatulRabbi\TalkBridge\Commands\AutoUnmuteCommand;
+use RahatulRabbi\TalkBridge\Commands\InstallChatCommand;
+use RahatulRabbi\TalkBridge\Commands\PublishChatCommand;
+use RahatulRabbi\TalkBridge\Commands\UninstallChatCommand;
+use RahatulRabbi\TalkBridge\Http\Middleware\UpdateLastSeen;
 
 class LaravelChatServiceProvider extends ServiceProvider
 {
@@ -17,7 +17,7 @@ class LaravelChatServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/laravel-chat.php', 'laravel-chat');
 
-        $this->app->singleton(\RahatulRabbi\LaravelChat\Services\ChatService::class);
+        $this->app->singleton(\RahatulRabbi\TalkBridge\Services\ChatService::class);
     }
 
     public function boot(): void

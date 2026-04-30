@@ -1,11 +1,11 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Http\Requests;
+namespace RahatulRabbi\TalkBridge\Http\Requests;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
-use RahatulRabbi\LaravelChat\Traits\ApiResponse;
+use RahatulRabbi\TalkBridge\Traits\ApiResponse;
 
 class BaseRequest extends FormRequest
 {

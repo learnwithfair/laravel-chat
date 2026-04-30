@@ -1,11 +1,11 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Commands;
+namespace RahatulRabbi\TalkBridge\Commands;
 
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use RahatulRabbi\LaravelChat\Jobs\UnmuteConversationJob;
+use RahatulRabbi\TalkBridge\Jobs\UnmuteConversationJob;
 
 class AutoUnmuteCommand extends Command
 {

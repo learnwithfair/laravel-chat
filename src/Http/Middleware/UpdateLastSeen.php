@@ -1,6 +1,6 @@
 <?php
 
-namespace RahatulRabbi\LaravelChat\Http\Middleware;
+namespace RahatulRabbi\TalkBridge\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;

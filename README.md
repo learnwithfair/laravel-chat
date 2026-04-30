@@ -25,7 +25,7 @@ Supports private and group conversations, message reactions, file attachments, m
 ### Step 1 — Install via Composer
 
 ```bash
-composer require rahatulrabbi/laravel-chat
+composer require rahatulrabbi/talkbridge
 ```
 
 ### Step 2 — Run the wizard
@@ -69,7 +69,7 @@ During install, the following trait is injected automatically into `App\Models\U
 
 ```php
 // @laravel-chat:use-start
-use \RahatulRabbi\LaravelChat\Traits\HasChatFeatures;
+use \RahatulRabbi\TalkBridge\Traits\HasChatFeatures;
 // @laravel-chat:use-end
 ```
 
@@ -448,7 +448,7 @@ php artisan chat:uninstall --keep-data
 To remove the Composer package after uninstalling:
 
 ```bash
-composer remove rahatulrabbi/laravel-chat
+composer remove rahatulrabbi/talkbridge
 ```
 
 ---
