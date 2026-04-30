@@ -1,5 +1,5 @@
 {
-    "name": "rahatulrabbi/laravel-chat",
+    "name": "rahatulrabbi/talkbridge",
     "description": "A professional real-time chat package for Laravel with private and group conversations, message reactions, file attachments, message status tracking, and WebSocket support.",
     "type": "library",
     "keywords": [
