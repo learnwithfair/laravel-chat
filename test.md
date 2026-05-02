@@ -68,8 +68,8 @@ git push -u origin main
 Packagist resolves versions from Git tags. Always use semantic versioning.
 
 ```bash
-git tag v1.0.2
-git push origin v1.0.2
+git tag v1.0.3
+git push origin v1.0.3
 ```
 
 ---
