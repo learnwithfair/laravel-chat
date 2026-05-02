@@ -8,7 +8,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('message_id')->constrained()->cascadeOnDelete();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->string('reaction');
+            $table->string('reaction'); // ❤️ 😂 👍 😡 😢
             $table->timestamps();
             $table->unique(['message_id', 'user_id']);
         });
