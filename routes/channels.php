@@ -1,10 +1,20 @@
 <?php
+
 use Illuminate\Support\Facades\Broadcast;
 use RahatulRabbi\TalkBridge\Models\ConversationParticipant;
 
-$avatarField = config('talkbridge.user_fields.avatar', 'avatar_path');
+/*
+|--------------------------------------------------------------------------
+| TalkBridge Broadcast Channels
+|--------------------------------------------------------------------------
+| Registered automatically by TalkBridgeServiceProvider after all
+| providers have booted. No manual registration required.
+|
+*/
 
-Broadcast::channel('online', function ($user) use ($avatarField) {
+Broadcast::channel('online', function ($user) {
+    $avatarField = config('talkbridge.user_fields.avatar', 'avatar_path');
+
     return [
         'id'     => $user->id,
         'name'   => talkbridge_user_name($user),
@@ -16,13 +26,17 @@ Broadcast::channel('user.{userId}', function ($user, $userId) {
     return (int) $user->id === (int) $userId;
 });
 
-Broadcast::channel('conversation.{conversationId}', function ($user, $conversationId) use ($avatarField) {
+Broadcast::channel('conversation.{conversationId}', function ($user, $conversationId) {
+    $avatarField = config('talkbridge.user_fields.avatar', 'avatar_path');
+
     $isMember = ConversationParticipant::where('conversation_id', $conversationId)
         ->where('user_id', $user->id)
         ->where('is_active', true)
         ->exists();
 
-    if (! $isMember) return false;
+    if (! $isMember) {
+        return false;
+    }
 
     return [
         'id'     => $user->id,

@@ -15,22 +15,37 @@ class TalkBridgeServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/talkbridge.php', 'talkbridge');
+        // Merge package config — always safe in register()
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/talkbridge.php',
+            'talkbridge'
+        );
 
-        $this->app->singleton(\RahatulRabbi\TalkBridge\Services\ChatService::class);
+        // Bind ChatService as singleton
+        $this->app->singleton(
+            \RahatulRabbi\TalkBridge\Services\ChatService::class
+        );
     }
 
     public function boot(): void
     {
+        // Always safe — no external dependencies
         $this->registerPublishables();
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
         $this->loadTranslationsFrom(__DIR__ . '/../lang', 'talkbridge');
-        $this->registerRoutes();
         $this->registerMiddlewareAlias();
-        $this->registerScheduler();
-        $this->registerBroadcastChannels();
         $this->registerCommands();
+
+        // Wrapped in booted() — runs AFTER all providers have booted
+        // This guarantees Route, Broadcast, and Schedule are fully ready
+        $this->app->booted(function () {
+            $this->registerRoutes();
+            $this->registerBroadcastChannels();
+            $this->registerScheduler();
+        });
     }
+
+    // -------------------------------------------------------------------------
 
     protected function registerPublishables(): void
     {
@@ -50,6 +65,7 @@ class TalkBridgeServiceProvider extends ServiceProvider
             __DIR__ . '/../lang' => lang_path('vendor/talkbridge'),
         ], 'talkbridge-lang');
 
+        // Publish everything at once
         $this->publishes([
             __DIR__ . '/../config/talkbridge.php' => config_path('talkbridge.php'),
             __DIR__ . '/../database/migrations/'  => database_path('migrations'),
@@ -59,48 +75,21 @@ class TalkBridgeServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register API routes automatically — no bootstrap/app.php edit required.
-     */
-    protected function registerRoutes(): void
-    {
-        if (! config('talkbridge.routing.enabled', true)) {
-            return;
-        }
-
-        Route::prefix(config('talkbridge.routing.prefix', 'api/v1'))
-            ->middleware(config('talkbridge.routing.middleware', ['api', 'auth:sanctum', 'talkbridge.last-seen']))
-            ->group(__DIR__ . '/../routes/api.php');
-    }
-
-    /**
-     * Register middleware alias automatically — no bootstrap/app.php edit required.
+     * Register middleware alias.
+     * Safe to call directly in boot() — router is always available.
      */
     protected function registerMiddlewareAlias(): void
     {
-        $this->app['router']->aliasMiddleware('talkbridge.last-seen', UpdateLastSeen::class);
+        $this->app['router']->aliasMiddleware(
+            'talkbridge.last-seen',
+            UpdateLastSeen::class
+        );
     }
 
     /**
-     * Register scheduler automatically — no bootstrap/app.php withSchedule() required.
+     * Register Artisan commands.
+     * Safe to call directly in boot() — console is always available.
      */
-    protected function registerScheduler(): void
-    {
-        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
-            $schedule->command('talkbridge:auto-unmute')
-                ->everyMinute()
-                ->withoutOverlapping()
-                ->runInBackground();
-        });
-    }
-
-    /**
-     * Register broadcast channels automatically — no routes/channels.php edit required.
-     */
-    protected function registerBroadcastChannels(): void
-    {
-        require_once __DIR__ . '/../routes/channels.php';
-    }
-
     protected function registerCommands(): void
     {
         if ($this->app->runningInConsole()) {
@@ -111,5 +100,54 @@ class TalkBridgeServiceProvider extends ServiceProvider
                 AutoUnmuteCommand::class,
             ]);
         }
+    }
+
+    /**
+     * Register API routes.
+     * Called inside booted() to guarantee Route facade is ready.
+     */
+    protected function registerRoutes(): void
+    {
+        if (! config('talkbridge.routing.enabled', true)) {
+            return;
+        }
+
+        Route::prefix(config('talkbridge.routing.prefix', 'api/v1'))
+            ->middleware(config('talkbridge.routing.middleware', [
+                'api', 'auth:sanctum', 'talkbridge.last-seen',
+            ]))
+            ->group(__DIR__ . '/../routes/api.php');
+    }
+
+    /**
+     * Register broadcast channels.
+     * Called inside booted() to guarantee Broadcast facade is ready.
+     */
+    protected function registerBroadcastChannels(): void
+    {
+        // Only register if broadcasting is configured
+        if (! $this->app->bound('Illuminate\Broadcasting\BroadcastManager')) {
+            return;
+        }
+
+        $channelsFile = __DIR__ . '/../routes/channels.php';
+
+        if (file_exists($channelsFile)) {
+            require $channelsFile;
+        }
+    }
+
+    /**
+     * Register scheduler.
+     * Called inside booted() to guarantee Schedule is ready.
+     */
+    protected function registerScheduler(): void
+    {
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            $schedule->command('talkbridge:auto-unmute')
+                ->everyMinute()
+                ->withoutOverlapping()
+                ->runInBackground();
+        });
     }
 }

@@ -34,6 +34,12 @@ composer require rahatulrabbi/talkbridge
 php artisan talkbridge:install
 ```
 
+### Step 3 - Update via composer (if needed)
+
+```bash
+composer update rahatulrabbi/talkbridge
+```
+
 The wizard prompts you for:
 
 | Prompt | Options |
