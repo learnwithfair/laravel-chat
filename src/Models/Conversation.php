@@ -1,87 +1,24 @@
 <?php
-
 namespace RahatulRabbi\TalkBridge\Models;
-
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-
-class Conversation extends Model
-{
+class Conversation extends Model {
     protected $guarded = [];
-
-    protected $casts = [
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
-
-    public function participants(): HasMany
-    {
-        return $this->hasMany(ConversationParticipant::class);
+    protected $casts   = ['created_at' => 'datetime', 'updated_at' => 'datetime'];
+    public function participants() { return $this->hasMany(ConversationParticipant::class); }
+    public function messages()     { return $this->hasMany(Message::class)->latest(); }
+    public function lastMessage()  { return $this->hasOne(Message::class)->latestOfMany(); }
+    public function groupSetting() { return $this->hasOne(GroupSettings::class); }
+    public function unreadMessages() { return $this->hasMany(Message::class); }
+    public function invites()      { return $this->hasMany(ConversationInvite::class); }
+    public function activeInvites(){ return $this->hasMany(ConversationInvite::class)->where('is_active', true); }
+    public function creator()      { return $this->belongsTo(config('talkbridge.user_model'), 'created_by'); }
+    public function getInviteLinkAttribute() { return $this->activeInvites->sortByDesc('created_at')->first(); }
+    public function otherParticipant($user) {
+        return $this->participants->where('user_id', '!=', $user->id)->first()?->user;
     }
-
-    public function messages(): HasMany
-    {
-        return $this->hasMany(Message::class)->latest();
-    }
-
-    public function lastMessage(): HasOne
-    {
-        return $this->hasOne(Message::class)->latestOfMany();
-    }
-
-    public function groupSetting(): HasOne
-    {
-        return $this->hasOne(GroupSettings::class);
-    }
-
-    public function unreadMessages(): HasMany
-    {
-        return $this->hasMany(Message::class);
-    }
-
-    public function invites(): HasMany
-    {
-        return $this->hasMany(ConversationInvite::class);
-    }
-
-    public function activeInvites(): HasMany
-    {
-        return $this->hasMany(ConversationInvite::class)->where('is_active', true);
-    }
-
-    public function creator(): BelongsTo
-    {
-        return $this->belongsTo(config('laravel-chat.user_model'), 'created_by');
-    }
-
-    public function getInviteLinkAttribute()
-    {
-        return $this->activeInvites->sortByDesc('created_at')->first();
-    }
-
-    public function otherParticipant(Model $currentUser): ?Model
-    {
-        return $this->participants->where('user_id', '!=', $currentUser->id)->first()?->user;
-    }
-
-    public function canUserSendMessage(?ConversationParticipant $participant = null): bool
-    {
-        if ($this->type === 'private') {
-            return true;
-        }
-
-        if ($participant && in_array($participant->role, ['admin', 'super_admin'])) {
-            return true;
-        }
-
-        $settings = $this->groupSetting;
-
-        if (! $settings) {
-            return true;
-        }
-
-        return (bool) $settings->allow_members_to_send_messages;
+    public function canUserSendMessage(?ConversationParticipant $p = null): bool {
+        if ($this->type === 'private') return true;
+        if ($p && in_array($p->role, ['admin', 'super_admin'])) return true;
+        return (bool) ($this->groupSetting?->allow_members_to_send_messages ?? true);
     }
 }

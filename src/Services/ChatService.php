@@ -3,6 +3,7 @@
 namespace RahatulRabbi\TalkBridge\Services;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use RahatulRabbi\TalkBridge\Events\MessageEvent;
 use RahatulRabbi\TalkBridge\Models\Message;
 use RahatulRabbi\TalkBridge\Models\MessageReaction;
@@ -13,15 +14,14 @@ use RahatulRabbi\TalkBridge\Actions\Chat\CreateConversationAction;
 use RahatulRabbi\TalkBridge\Actions\Chat\SendMessageAction;
 use RahatulRabbi\TalkBridge\Actions\Chat\MarkMessageReadAction;
 use RahatulRabbi\TalkBridge\Traits\ApiResponse;
-use Illuminate\Http\Exceptions\HttpResponseException;
 
 class ChatService
 {
     use ApiResponse;
 
     public function __construct(
-        protected ConversationRepository $conversationRepo,
-        protected MessageRepository      $messageRepo,
+        protected ConversationRepository  $conversationRepo,
+        protected MessageRepository       $messageRepo,
         protected CreateConversationAction $createConversation,
         protected SendMessageAction        $sendMessageAction,
         protected MarkMessageReadAction    $markRead
@@ -56,7 +56,6 @@ class ChatService
         if (! $this->conversationRepo->canUserPermit($conversationId, $user->id)) {
             throw new HttpResponseException($this->error(null, 'You are not a member of this conversation.', 403));
         }
-
         return $this->messageRepo->mediaLibrary($user, $conversationId, $perPage);
     }
 
@@ -84,7 +83,7 @@ class ChatService
     public function updateMessage(Model $user, array $data, Message $message)
     {
         $updated = $this->sendMessageAction->update($user, $data, $message);
-        event(new MessageEvent('updated', $message->conversation_id, $message->toArray()));
+        event(new MessageEvent('updated', $message->conversation_id, $message->fresh()->toArray()));
         return $updated;
     }
 
@@ -93,25 +92,21 @@ class ChatService
         return $this->conversationRepo->pinToggleMessage($user, $message);
     }
 
-    public function deleteForMe(Model $user, array $data)
+    public function deleteForMe(Model $user, array $data): string
     {
         $ids = $data['message_ids'] ?? (isset($data['message_id']) ? [$data['message_id']] : []);
-
         if (empty($ids)) {
             throw new HttpResponseException($this->error(null, 'No messages provided.', 422));
         }
-
         return $this->messageRepo->deleteMessagesForUser($user->id, $ids);
     }
 
-    public function deleteForEveryone(Model $user, array $data)
+    public function deleteForEveryone(Model $user, array $data): string
     {
         $ids = $data['message_ids'] ?? (isset($data['message_id']) ? [$data['message_id']] : []);
-
         if (empty($ids)) {
             throw new HttpResponseException($this->error(null, 'No messages provided.', 422));
         }
-
         return $this->messageRepo->deleteMessagesForEveryone($user->id, $ids);
     }
 
@@ -141,14 +136,12 @@ class ChatService
 
     public function toggleReaction(Model $user, int $messageId, string $reaction)
     {
-        $message = $this->messageRepo->find($messageId);
-
+        $message  = $this->messageRepo->find($messageId);
         if (! $message) {
             throw new HttpResponseException($this->error(null, 'Message not found.', 404));
         }
 
         $existing = $message->reactions()->where('user_id', $user->id)->first();
-
         if ($existing && $existing->reaction === $reaction) {
             $message->reactions()->where('user_id', $user->id)->delete();
         } else {
@@ -159,7 +152,6 @@ class ChatService
         }
 
         $reactions = $message->reactions()->with('user')->get();
-
         broadcast(new MessageEvent('reaction', $message->conversation_id, [
             'message_id' => $message->id,
             'reactions'  => $reactions,
@@ -170,16 +162,15 @@ class ChatService
 
     public function listReactions(int $messageId): array
     {
-        $reactions = MessageReaction::where('message_id', $messageId)
-            ->with(['user:id,name,' . config('laravel-chat.user_fields.avatar', 'avatar_path')])
-            ->get();
+        $avatarField = config('talkbridge.user_fields.avatar', 'avatar_path');
+        $reactions   = MessageReaction::where('message_id', $messageId)->with(['user'])->get();
 
-        $grouped = $reactions->groupBy('reaction')->map(fn($items, $reaction) => [
+        $grouped = $reactions->groupBy('reaction')->map(fn($items) => [
             'count' => $items->count(),
             'users' => $items->map(fn($r) => [
                 'user_id'    => $r->user_id,
-                'name'       => $r->user->name ?? null,
-                'avatar'     => $r->user->{config('laravel-chat.user_fields.avatar', 'avatar_path')} ?? null,
+                'name'       => talkbridge_user_name($r->user),
+                'avatar'     => talkbridge_user_avatar($r->user),
                 'created_at' => $r->created_at->toDateTimeString(),
             ])->values(),
         ]);
@@ -188,7 +179,7 @@ class ChatService
     }
 
     // -------------------------------------------------------------------------
-    // Group Management
+    // Group management
     // -------------------------------------------------------------------------
 
     public function getMembers(Model $user, int $groupId)
@@ -253,7 +244,7 @@ class ChatService
     }
 
     // -------------------------------------------------------------------------
-    // User Blocking
+    // User blocking
     // -------------------------------------------------------------------------
 
     public function toggleBlock(Model $user, int $userId)

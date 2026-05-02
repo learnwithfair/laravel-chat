@@ -1,5 +1,4 @@
 <?php
-
 namespace RahatulRabbi\TalkBridge\Events;
 
 use Illuminate\Broadcasting\PresenceChannel;
@@ -21,16 +20,10 @@ class MessageEvent implements ShouldBroadcastNow
         return new PresenceChannel('conversation.' . $this->conversationId);
     }
 
-    public function broadcastAs(): string
-    {
-        return 'MessageEvent';
-    }
+    public function broadcastAs(): string { return 'MessageEvent'; }
 
     public function broadcastWith(): array
     {
-        return [
-            'type'    => $this->type,
-            'payload' => $this->payload,
-        ];
+        return ['type' => $this->type, 'payload' => $this->payload];
     }
 }

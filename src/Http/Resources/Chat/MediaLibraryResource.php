@@ -1,13 +1,9 @@
 <?php
 namespace RahatulRabbi\TalkBridge\Http\Resources\Chat;
-
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-
-class MediaLibraryResource extends JsonResource
-{
-    public function toArray(Request $request): array
-    {
+class MediaLibraryResource extends JsonResource {
+    public function toArray(Request $request): array {
         return [
             'media'      => MessageAttachmentResource::collection($this['media'] ?? []),
             'audio'      => MessageAttachmentResource::collection($this['audio'] ?? []),

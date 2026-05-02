@@ -35,7 +35,6 @@ class UnmuteConversationJob implements ShouldQueue
 
             if ($updated) {
                 $conversation = Conversation::find($this->conversationId);
-
                 if ($conversation) {
                     broadcast(new ConversationEvent(
                         $conversation,
@@ -46,7 +45,7 @@ class UnmuteConversationJob implements ShouldQueue
                 }
             }
         } catch (\Throwable $e) {
-            Log::error('laravel-chat UnmuteConversationJob failed', [
+            Log::error('TalkBridge UnmuteConversationJob failed', [
                 'participant_id'  => $this->participantId,
                 'user_id'         => $this->userId,
                 'conversation_id' => $this->conversationId,
@@ -58,7 +57,7 @@ class UnmuteConversationJob implements ShouldQueue
 
     public function failed(\Throwable $exception): void
     {
-        Log::error('laravel-chat UnmuteConversationJob permanently failed', [
+        Log::error('TalkBridge UnmuteConversationJob permanently failed', [
             'participant_id'  => $this->participantId,
             'user_id'         => $this->userId,
             'conversation_id' => $this->conversationId,
