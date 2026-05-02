@@ -1,5 +1,4 @@
 <?php
-
 namespace RahatulRabbi\TalkBridge\Commands;
 
 use Illuminate\Console\Command;
@@ -11,8 +10,8 @@ use RahatulRabbi\TalkBridge\Support\UserModelModifier;
 class InstallCommand extends Command
 {
     protected $signature = 'talkbridge:install
-                            {--broadcaster=reverb : Broadcasting driver (reverb|pusher|ably)}
-                            {--push=none : Push notification provider (none|fcm|web|both)}
+                            {--broadcaster= : Broadcasting driver (reverb|pusher|ably|log|null) — skips interactive prompt}
+                            {--push= : Push provider (none|fcm|web|both) — skips interactive prompt}
                             {--force : Overwrite existing published files}
                             {--no-migrate : Skip running migrations}';
 
@@ -29,7 +28,7 @@ class InstallCommand extends Command
         $this->step(1, 'Publishing assets');
         $this->publishAssets();
 
-        $this->step(2, 'Selecting broadcaster');
+        $this->step(2, 'Select broadcasting driver');
         $broadcaster = $this->resolveBroadcaster();
 
         $this->step(3, 'Installing broadcaster package');
@@ -38,7 +37,7 @@ class InstallCommand extends Command
         $this->step(4, 'Writing broadcaster .env variables');
         $this->writeBroadcasterEnv($broadcaster);
 
-        $this->step(5, 'Selecting push notification provider');
+        $this->step(5, 'Select push notification provider');
         $pushProvider = $this->resolvePushProvider();
 
         $this->step(6, 'Installing push notification package');
@@ -48,7 +47,7 @@ class InstallCommand extends Command
         $this->writePushEnv($pushProvider);
 
         $this->step(8, 'Writing base .env variables');
-        $this->writeBaseEnv($broadcaster);
+        $this->writeBaseEnv();
 
         $this->step(9, 'Patching User model');
         $this->patchUserModel();
@@ -57,7 +56,7 @@ class InstallCommand extends Command
         $this->printAutoWiringSummary();
 
         if (! $this->option('no-migrate')) {
-            $this->step(11, 'Running migrations');
+            $this->step(11, 'Database migrations');
             $this->runMigrations();
         }
 
@@ -67,7 +66,7 @@ class InstallCommand extends Command
     }
 
     // -------------------------------------------------------------------------
-    // Step implementations
+    // Steps
     // -------------------------------------------------------------------------
 
     protected function publishAssets(): void
@@ -89,23 +88,70 @@ class InstallCommand extends Command
 
     protected function resolveBroadcaster(): string
     {
-        $driver  = $this->option('broadcaster');
-        $options = ['reverb', 'pusher', 'ably', 'log', 'null'];
+        $validOptions = ['reverb', 'pusher', 'ably', 'log', 'null'];
 
-        if (in_array($driver, $options, true)) {
-            return $driver;
+        // If passed explicitly via --broadcaster=xxx, use it directly
+        $passed = $this->option('broadcaster');
+        if ($passed && in_array($passed, $validOptions, true)) {
+            $this->line("    Using: {$passed}");
+            return $passed;
         }
 
-        return $this->choice('    Which broadcasting driver?', $options, 0);
+        // Otherwise always ask the user
+        $this->newLine();
+        return $this->choice(
+            '    Which broadcasting driver do you want to use?',
+            [
+                'reverb — Laravel Reverb (recommended, self-hosted WebSocket)',
+                'pusher — Pusher Channels (cloud service)',
+                'ably   — Ably (cloud service)',
+                'log    — Log driver (testing only)',
+                'null   — Null driver (disabled)',
+            ],
+            0
+        );
+    }
+
+    protected function resolvePushProvider(): string
+    {
+        $validOptions = ['none', 'fcm', 'web', 'both'];
+
+        // If passed explicitly via --push=xxx, use it directly
+        $passed = $this->option('push');
+        if ($passed !== null && in_array($passed, $validOptions, true)) {
+            $this->line("    Using: {$passed}");
+            return $passed;
+        }
+
+        // Otherwise always ask the user
+        $this->newLine();
+        $choice = $this->choice(
+            '    Which push notification provider do you want?',
+            [
+                'none — Disabled (no push notifications)',
+                'fcm  — Firebase Cloud Messaging (Android + iOS)',
+                'web  — Browser Web Push via VAPID (desktop browsers)',
+                'both — FCM + Web Push (mobile and browser)',
+            ],
+            0
+        );
+
+        // Extract the key before the dash
+        return explode(' ', trim($choice))[0];
     }
 
     protected function installBroadcaster(string $broadcaster): void
     {
-        match ($broadcaster) {
+        // Strip the description suffix if user selected from choice list
+        $driver = explode(' ', trim($broadcaster))[0];
+
+        $this->line("    Driver: {$driver}");
+
+        match ($driver) {
             'reverb' => $this->installReverb(),
             'pusher' => $this->installPusher(),
             'ably'   => $this->installAbly(),
-            default  => $this->line("    No extra package needed for '{$broadcaster}'."),
+            default  => $this->line("    No extra package required for '{$driver}'."),
         };
     }
 
@@ -124,7 +170,9 @@ class InstallCommand extends Command
             Artisan::call('reverb:install', ['--no-interaction' => true]);
             $this->line('    reverb:install complete.');
         } else {
-            $this->warn("    composer require laravel/reverb failed:\n{$out}");
+            $this->warn("    composer require laravel/reverb failed. Install manually:");
+            $this->line('      composer require laravel/reverb');
+            $this->line('      php artisan reverb:install');
         }
     }
 
@@ -140,7 +188,7 @@ class InstallCommand extends Command
 
         $ok
             ? $this->line('    pusher/pusher-php-server installed.')
-            : $this->warn("    Install failed:\n{$out}");
+            : $this->warn("    Failed. Run manually: composer require pusher/pusher-php-server");
     }
 
     protected function installAbly(): void
@@ -155,42 +203,23 @@ class InstallCommand extends Command
 
         $ok
             ? $this->line('    ably/ably-php installed.')
-            : $this->warn("    Install failed:\n{$out}");
-    }
-
-    protected function resolvePushProvider(): string
-    {
-        $provider = $this->option('push');
-        $options  = ['none', 'fcm', 'web', 'both'];
-
-        if (in_array($provider, $options, true)) {
-            return $provider;
-        }
-
-        return $this->choice(
-            '    Push notification provider?',
-            [
-                'none — disabled',
-                'fcm  — Firebase (Android + iOS)',
-                'web  — Browser Web Push (VAPID)',
-                'both — FCM + Web Push',
-            ],
-            0
-        );
+            : $this->warn("    Failed. Run manually: composer require ably/ably-php");
     }
 
     protected function installPushProvider(string $provider): void
     {
-        if ($provider === 'none') {
-            $this->line('    Push notifications disabled.');
+        $key = explode(' ', trim($provider))[0];
+
+        if ($key === 'none') {
+            $this->line('    Push notifications: disabled.');
             return;
         }
 
-        if (in_array($provider, ['fcm', 'both'], true)) {
+        if (in_array($key, ['fcm', 'both'], true)) {
             $this->installFcm();
         }
 
-        if (in_array($provider, ['web', 'both'], true)) {
+        if (in_array($key, ['web', 'both'], true)) {
             $this->installWebPush();
         }
     }
@@ -207,12 +236,12 @@ class InstallCommand extends Command
                 $this->line('    kreait/laravel-firebase installed.');
                 Artisan::call('vendor:publish', ['--tag' => 'laravel-firebase']);
             } else {
-                $this->warn("    Install failed:\n{$out}");
+                $this->warn('    Failed. Run manually: composer require kreait/laravel-firebase');
                 return;
             }
         }
 
-        $this->line('    Place Firebase credentials at:');
+        $this->line('    Place Firebase service account JSON at:');
         $this->line('      storage/app/firebase/service-account.json');
     }
 
@@ -226,16 +255,18 @@ class InstallCommand extends Command
 
             $ok
                 ? $this->line('    minishlink/web-push installed.')
-                : $this->warn("    Install failed:\n{$out}");
+                : $this->warn('    Failed. Run manually: composer require minishlink/web-push');
         }
 
-        $this->line('    Generate VAPID keys with:');
+        $this->line('    Generate VAPID keys:');
         $this->line('      php artisan talkbridge:generate-vapid');
     }
 
     protected function writeBroadcasterEnv(string $broadcaster): void
     {
-        $vars = match ($broadcaster) {
+        $driver = explode(' ', trim($broadcaster))[0];
+
+        $vars = match ($driver) {
             'reverb' => [
                 'BROADCAST_DRIVER'    => 'reverb',
                 'REVERB_APP_ID'       => 'talkbridge-app',
@@ -258,11 +289,11 @@ class InstallCommand extends Command
                 'VITE_PUSHER_APP_KEY'     => '${PUSHER_APP_KEY}',
                 'VITE_PUSHER_APP_CLUSTER' => '${PUSHER_APP_CLUSTER}',
             ],
-            'ably' => [
+            'ably'   => [
                 'BROADCAST_DRIVER' => 'ably',
                 'ABLY_KEY'         => '',
             ],
-            default => ['BROADCAST_DRIVER' => $broadcaster],
+            default  => ['BROADCAST_DRIVER' => $driver],
         };
 
         $this->appendEnvVars($vars);
@@ -270,9 +301,11 @@ class InstallCommand extends Command
 
     protected function writePushEnv(string $provider): void
     {
-        $vars = ['TALKBRIDGE_PUSH_PROVIDER' => $provider];
+        $key = explode(' ', trim($provider))[0];
 
-        if (in_array($provider, ['web', 'both'], true)) {
+        $vars = ['TALKBRIDGE_PUSH_PROVIDER' => $key];
+
+        if (in_array($key, ['web', 'both'], true)) {
             $vars['VAPID_PUBLIC_KEY']  = '';
             $vars['VAPID_PRIVATE_KEY'] = '';
             $vars['VAPID_SUBJECT']     = 'mailto:admin@example.com';
@@ -281,7 +314,7 @@ class InstallCommand extends Command
         $this->appendEnvVars($vars);
     }
 
-    protected function writeBaseEnv(string $broadcaster): void
+    protected function writeBaseEnv(): void
     {
         $this->appendEnvVars([
             'TALKBRIDGE_ONLINE_THRESHOLD' => '2',
@@ -301,7 +334,7 @@ class InstallCommand extends Command
 
         if (! $path) {
             $this->warn('    User model not found. Add trait manually:');
-            $this->warn('    use \\RahatulRabbi\\TalkBridge\\Traits\\HasTalkBridgeFeatures;');
+            $this->warn('      use \\RahatulRabbi\\TalkBridge\\Traits\\HasTalkBridgeFeatures;');
             return;
         }
 
@@ -310,8 +343,8 @@ class InstallCommand extends Command
 
         $relative = str_replace(base_path() . DIRECTORY_SEPARATOR, '', $path);
         $this->line("    Patched  ->  {$relative}");
-        $this->line('    - HasTalkBridgeFeatures trait injected');
-        $this->line('    - last_seen_at added to fillable (if applicable)');
+        $this->line('      - HasTalkBridgeFeatures trait injected');
+        $this->line('      - last_seen_at added to fillable (if applicable)');
     }
 
     protected function printAutoWiringSummary(): void
@@ -350,7 +383,7 @@ class InstallCommand extends Command
         foreach ($vars as $key => $value) {
             if (! str_contains($existing, $key . '=')) {
                 File::append($envPath, "\n{$key}={$value}");
-                $this->line("    Added .env  ->  {$key}");
+                $this->line("    .env  ->  {$key}={$value}");
             }
         }
     }
@@ -359,7 +392,7 @@ class InstallCommand extends Command
     {
         $userModel    = config('talkbridge.user_model', 'App\\Models\\User');
         $relativePath = ltrim(str_replace(['App\\', '\\'], ['app/', '/'], $userModel), '/') . '.php';
-        $fullPath      = base_path($relativePath);
+        $fullPath     = base_path($relativePath);
 
         if (File::exists($fullPath)) {
             return $fullPath;
@@ -383,7 +416,7 @@ class InstallCommand extends Command
         $this->newLine();
         $this->line('  +----------------------------------------------------+');
         $this->line('  |   TalkBridge  -  Real-time Chat for Laravel         |');
-        $this->line('  |   by MD. RAHATUL RABBI  |  v1.0.0                   |');
+        $this->line('  |   by MD. RAHATUL RABBI  |  v1.0.1                   |');
         $this->line('  |   github.com/learnwithfair/talkbridge               |');
         $this->line('  +----------------------------------------------------+');
         $this->newLine();
@@ -391,41 +424,46 @@ class InstallCommand extends Command
 
     protected function printSuccess(string $broadcaster, string $pushProvider): void
     {
+        $driver = explode(' ', trim($broadcaster))[0];
+        $push   = explode(' ', trim($pushProvider))[0];
+
         $this->newLine();
         $this->line('  +----------------------------------------------------+');
         $this->info('  |   Installation complete. Zero manual steps taken.  |');
         $this->line('  +----------------------------------------------------+');
         $this->newLine();
-        $this->line("  Broadcaster:       {$broadcaster}");
-        $this->line("  Push provider:     {$pushProvider}");
+        $this->line("  Broadcaster:    {$driver}");
+        $this->line("  Push provider:  {$push}");
         $this->newLine();
         $this->line('  Everything configured automatically:');
-        $this->line('    - config/talkbridge.php');
+        $this->line('    - config/talkbridge.php published');
         $this->line('    - Migrations published and run');
         $this->line('    - HasTalkBridgeFeatures injected into User model');
         $this->line('    - Middleware, scheduler, channels, routes auto-registered');
         $this->newLine();
-        $this->line('  Recommended next steps:');
-        $this->line('    1. Review config/talkbridge.php (check user_fields mapping)');
+        $this->line('  Next steps:');
+        $this->line('    1. Review config/talkbridge.php  (check user_fields mapping)');
 
-        if ($broadcaster === 'reverb') {
+        if ($driver === 'reverb') {
             $this->line('    2. php artisan reverb:start --debug');
-        } elseif ($broadcaster === 'pusher') {
-            $this->line('    2. Fill PUSHER_* values in .env');
+        } elseif ($driver === 'pusher') {
+            $this->line('    2. Fill PUSHER_* credentials in .env');
+        } elseif ($driver === 'ably') {
+            $this->line('    2. Fill ABLY_KEY in .env');
         }
 
-        if (in_array($pushProvider, ['fcm', 'both'])) {
+        if (in_array($push, ['fcm', 'both'])) {
             $this->line('    3. Add storage/app/firebase/service-account.json');
         }
 
-        if (in_array($pushProvider, ['web', 'both'])) {
+        if (in_array($push, ['web', 'both'])) {
             $this->line('    3. php artisan talkbridge:generate-vapid');
         }
 
         $this->line('    4. php artisan queue:work --queue=talkbridge');
         $this->newLine();
-        $this->line('  To uninstall: php artisan talkbridge:uninstall');
-        $this->line('  Docs: https://github.com/learnwithfair/talkbridge');
+        $this->line('  To uninstall:  php artisan talkbridge:uninstall');
+        $this->line('  Docs:          https://github.com/learnwithfair/talkbridge');
         $this->newLine();
     }
 
