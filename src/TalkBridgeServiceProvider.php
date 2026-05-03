@@ -9,6 +9,8 @@ use RahatulRabbi\TalkBridge\Commands\AutoUnmuteCommand;
 use RahatulRabbi\TalkBridge\Commands\InstallCommand;
 use RahatulRabbi\TalkBridge\Commands\PublishCommand;
 use RahatulRabbi\TalkBridge\Commands\UninstallCommand;
+use RahatulRabbi\TalkBridge\Commands\UpdateCommand;
+use RahatulRabbi\TalkBridge\Commands\VersionCommand;
 use RahatulRabbi\TalkBridge\Http\Middleware\UpdateLastSeen;
 
 class TalkBridgeServiceProvider extends ServiceProvider
@@ -96,6 +98,8 @@ class TalkBridgeServiceProvider extends ServiceProvider
             $this->commands([
                 InstallCommand::class,
                 UninstallCommand::class,
+                UpdateCommand::class,
+                VersionCommand::class,
                 PublishCommand::class,
                 AutoUnmuteCommand::class,
             ]);

@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.2] - 2024-01-03
+
+### Fixed
+- `installReverb()`: `reverb:install` command does not exist until `package:discover`
+  runs after the Composer install. Fixed by:
+  1. Running `package:discover` after `composer require laravel/reverb`.
+  2. Checking `Artisan::all()` for `reverb:install` before calling it.
+  3. Fallback: writing the Reverb connection block directly into
+     `config/broadcasting.php` if `reverb:install` is still unavailable.
+
+### Added
+- `php artisan talkbridge:version` — shows installed version and recent changelog.
+  Use `--check` flag to compare with latest version on Packagist.
+- `php artisan talkbridge:update` — runs `composer update`, re-publishes migrations,
+  runs new migrations, verifies User model patch, and clears caches.
+  Use `--force` to also overwrite config and stubs.
+
+---
+
 ## [1.0.1] - 2024-01-02
 
 ### Fixed

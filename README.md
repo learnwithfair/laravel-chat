@@ -1,6 +1,6 @@
 # TalkBridge
 
-Real-time chat package for Laravel 11, 12 and 13.
+Real-time chat package for Laravel 11 and 12.
 
 Private and group conversations, message reactions, file attachments, message status
 (sent / delivered / seen), typing indicators, user blocking, group management,
@@ -15,7 +15,7 @@ FCM and Web Push notifications, WebSocket broadcasting via Reverb or Pusher.
 | Dependency | Version |
 |---|---|
 | PHP | 8.2 or higher |
-| Laravel | 11.x, 12.x, and 13.x |
+| Laravel | 11.x or 12.x |
 | Laravel Sanctum | 4.x |
 
 All optional packages (Reverb, Pusher, Firebase, Web Push) are installed
@@ -741,6 +741,10 @@ All under `/api/v1` with Sanctum auth (`Authorization: Bearer {token}`).
 | `php artisan talkbridge:publish --tag=config` | Re-publish config only |
 | `php artisan talkbridge:publish --tag=migrations` | Re-publish migrations only |
 | `php artisan talkbridge:publish --tag=stubs` | Publish stubs for customization |
+| `php artisan talkbridge:version` | Show installed version and recent changelog |
+| `php artisan talkbridge:version --check` | Check Packagist for a newer version |
+| `php artisan talkbridge:update` | Update to latest version — runs composer update, migrations, cache clear |
+| `php artisan talkbridge:update --force` | Update and overwrite published config and stubs |
 | `php artisan talkbridge:auto-unmute` | Process expired mutes (auto-run by scheduler) |
 
 ---
