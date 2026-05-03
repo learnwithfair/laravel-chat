@@ -11,13 +11,54 @@ use RahatulRabbi\TalkBridge\Support\UserModelModifier;
 class UninstallCommand extends Command
 {
     protected $signature = 'talkbridge:uninstall
-                            {--force : Skip all confirmation prompts}
-                            {--keep-data : Do not drop database tables}
-                            {--keep-packages : Do not remove installed optional packages}';
+                            {--force          : Skip all confirmation prompts}
+                            {--keep-data      : Do not drop database tables}
+                            {--keep-packages  : Do not remove installed optional packages}';
 
-    protected $description = 'Uninstall TalkBridge — removes all injected code, files, and optional packages';
+    protected $description = 'Uninstall TalkBridge — removes all injected code, files, env vars, and optional packages';
 
     protected ComposerRunner $composer;
+
+    /**
+     * All env keys that TalkBridge writes during install.
+     * Broadcaster-specific keys are determined dynamically from TALKBRIDGE_INSTALLED_BROADCASTER.
+     */
+    protected array $baseTalkBridgeEnvKeys = [
+        'TALKBRIDGE_ONLINE_THRESHOLD',
+        'TALKBRIDGE_ROUTE_PREFIX',
+        'TALKBRIDGE_UPLOAD_DISK',
+        'TALKBRIDGE_QUEUE_CONNECTION',
+        'TALKBRIDGE_QUEUE_NAME',
+        'TALKBRIDGE_CACHE_ENABLED',
+        'TALKBRIDGE_CACHE_TTL',
+        'TALKBRIDGE_INVITE_URL',
+        'TALKBRIDGE_PUSH_PROVIDER',
+        'TALKBRIDGE_MAX_FILE_SIZE',
+        'TALKBRIDGE_INSTALLED_BROADCASTER',
+        'TALKBRIDGE_INSTALLED_PUSH',
+        'FIREBASE_CREDENTIALS',
+        'VAPID_PUBLIC_KEY',
+        'VAPID_PRIVATE_KEY',
+        'VAPID_SUBJECT',
+    ];
+
+    protected array $broadcasterEnvKeys = [
+        'reverb' => [
+            'BROADCAST_DRIVER',
+            'REVERB_APP_ID', 'REVERB_APP_KEY', 'REVERB_APP_SECRET',
+            'REVERB_HOST', 'REVERB_PORT', 'REVERB_SCHEME',
+            'VITE_REVERB_APP_KEY', 'VITE_REVERB_HOST',
+            'VITE_REVERB_PORT', 'VITE_REVERB_SCHEME',
+        ],
+        'pusher' => [
+            'BROADCAST_DRIVER',
+            'PUSHER_APP_ID', 'PUSHER_APP_KEY', 'PUSHER_APP_SECRET', 'PUSHER_APP_CLUSTER',
+            'VITE_PUSHER_APP_KEY', 'VITE_PUSHER_APP_CLUSTER',
+        ],
+        'ably' => ['BROADCAST_DRIVER', 'ABLY_KEY'],
+        'log'  => ['BROADCAST_DRIVER'],
+        'null' => ['BROADCAST_DRIVER'],
+    ];
 
     protected array $chatTables = [
         'conversation_invites',
@@ -32,23 +73,6 @@ class UninstallCommand extends Command
         'device_tokens',
         'user_restricts',
         'user_blocks',
-    ];
-
-    protected array $envKeys = [
-        'BROADCAST_DRIVER',
-        'REVERB_APP_ID', 'REVERB_APP_KEY', 'REVERB_APP_SECRET',
-        'REVERB_HOST', 'REVERB_PORT', 'REVERB_SCHEME',
-        'VITE_REVERB_APP_KEY', 'VITE_REVERB_HOST', 'VITE_REVERB_PORT', 'VITE_REVERB_SCHEME',
-        'PUSHER_APP_ID', 'PUSHER_APP_KEY', 'PUSHER_APP_SECRET', 'PUSHER_APP_CLUSTER',
-        'VITE_PUSHER_APP_KEY', 'VITE_PUSHER_APP_CLUSTER',
-        'ABLY_KEY',
-        'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT',
-        'TALKBRIDGE_ONLINE_THRESHOLD', 'TALKBRIDGE_ROUTE_PREFIX',
-        'TALKBRIDGE_UPLOAD_DISK', 'TALKBRIDGE_QUEUE_CONNECTION',
-        'TALKBRIDGE_QUEUE_NAME', 'TALKBRIDGE_CACHE_ENABLED',
-        'TALKBRIDGE_CACHE_TTL', 'TALKBRIDGE_INVITE_URL',
-        'TALKBRIDGE_PUSH_PROVIDER', 'TALKBRIDGE_MAX_FILE_SIZE',
-        'FIREBASE_CREDENTIALS',
     ];
 
     protected array $migrationPatterns = [
@@ -67,13 +91,15 @@ class UninstallCommand extends Command
         'add_last_seen_at_to_users_table',
     ];
 
-    // Optional packages installed by talkbridge:install
+    /**
+     * Map from package name to a class that exists when the package is installed.
+     */
     protected array $optionalPackages = [
-        'laravel/reverb'             => \Laravel\Reverb\ReverbServiceProvider::class,
-        'pusher/pusher-php-server'   => \Pusher\Pusher::class,
-        'ably/ably-php'              => \Ably\AblyRest::class,
-        'kreait/laravel-firebase'    => \Kreait\Firebase\Factory::class,
-        'minishlink/web-push'        => \Minishlink\WebPush\WebPush::class,
+        'laravel/reverb'           => \Laravel\Reverb\ReverbServiceProvider::class,
+        'pusher/pusher-php-server' => \Pusher\Pusher::class,
+        'ably/ably-php'            => \Ably\AblyRest::class,
+        'kreait/laravel-firebase'  => \Kreait\Firebase\Factory::class,
+        'minishlink/web-push'      => \Minishlink\WebPush\WebPush::class,
     ];
 
     public function handle(): int
@@ -83,11 +109,15 @@ class UninstallCommand extends Command
         $this->printHeader();
 
         if (! $this->option('force')) {
-            if (! $this->confirm('  This removes all TalkBridge data, files, and injected code. Continue?', false)) {
+            if (! $this->confirm('  This will remove all TalkBridge data, files, and injected code. Continue?', false)) {
                 $this->line('  Uninstall cancelled.');
                 return self::SUCCESS;
             }
         }
+
+        // Read what was installed so we only remove what we added
+        $installedBroadcaster = $this->readEnvValue('TALKBRIDGE_INSTALLED_BROADCASTER');
+        $installedPush        = $this->readEnvValue('TALKBRIDGE_INSTALLED_PUSH');
 
         $this->step(1, 'Restoring User model');
         $this->restoreUserModel();
@@ -96,7 +126,7 @@ class UninstallCommand extends Command
             $this->step(2, 'Dropping database tables');
             $this->dropTables();
         } else {
-            $this->line('  [2] Skipping table removal (--keep-data flag set)');
+            $this->line('  [2] Skipping table removal (--keep-data)');
         }
 
         $this->step(3, 'Removing published files');
@@ -106,19 +136,23 @@ class UninstallCommand extends Command
         $this->removeMigrationFiles();
 
         $this->step(5, 'Cleaning .env variables');
-        $this->cleanEnvVariables();
+        $this->cleanEnvVariables($installedBroadcaster);
 
         if (! $this->option('keep-packages')) {
             $this->step(6, 'Removing optional packages');
-            $this->removeOptionalPackages();
+            $this->removeOptionalPackages($installedBroadcaster, $installedPush);
         } else {
-            $this->line('  [6] Skipping package removal (--keep-packages flag set)');
+            $this->line('  [6] Skipping package removal (--keep-packages)');
         }
 
         $this->printSuccess();
 
         return self::SUCCESS;
     }
+
+    // =========================================================================
+    // Steps
+    // =========================================================================
 
     protected function restoreUserModel(): void
     {
@@ -132,7 +166,7 @@ class UninstallCommand extends Command
         $modifier = new UserModelModifier($path);
 
         if (! $modifier->isAlreadyInjected()) {
-            $this->line('    HasTalkBridgeFeatures not found — nothing to remove.');
+            $this->line('    HasTalkBridgeFeatures not found in User model — nothing to remove.');
             return;
         }
 
@@ -140,8 +174,8 @@ class UninstallCommand extends Command
 
         $relative = str_replace(base_path() . DIRECTORY_SEPARATOR, '', $path);
         $this->line("    Restored  ->  {$relative}");
-        $this->line('    - HasTalkBridgeFeatures trait removed');
-        $this->line('    - last_seen_at removed from fillable (if added)');
+        $this->line('      - HasTalkBridgeFeatures removed');
+        $this->line('      - last_seen_at removed from $fillable (if it was added)');
     }
 
     protected function dropTables(): void
@@ -178,6 +212,10 @@ class UninstallCommand extends Command
 
     protected function removeMigrationFiles(): void
     {
+        if (! is_dir(database_path('migrations'))) {
+            return;
+        }
+
         $files   = File::files(database_path('migrations'));
         $removed = 0;
 
@@ -197,7 +235,7 @@ class UninstallCommand extends Command
         }
     }
 
-    protected function cleanEnvVariables(): void
+    protected function cleanEnvVariables(string $installedBroadcaster): void
     {
         $envPath = base_path('.env');
 
@@ -206,12 +244,19 @@ class UninstallCommand extends Command
             return;
         }
 
+        // Determine which broadcaster keys to remove based on what was installed
+        $broadcasterKeys = $installedBroadcaster && isset($this->broadcasterEnvKeys[$installedBroadcaster])
+            ? $this->broadcasterEnvKeys[$installedBroadcaster]
+            : ['BROADCAST_DRIVER']; // always remove BROADCAST_DRIVER at minimum
+
+        $allKeys = array_unique(array_merge($this->baseTalkBridgeEnvKeys, $broadcasterKeys));
+
         $content = File::get($envPath);
         $removed = 0;
 
-        foreach ($this->envKeys as $key) {
+        foreach ($allKeys as $key) {
             if (str_contains($content, $key . '=')) {
-                $content = preg_replace("/^{$key}=.*\n?/m", '', $content);
+                $content = preg_replace("/^{$key}=.*\r?\n?/m", '', $content);
                 $removed++;
             }
         }
@@ -223,22 +268,80 @@ class UninstallCommand extends Command
         $this->line("    Removed {$removed} variable(s) from .env");
     }
 
-    protected function removeOptionalPackages(): void
+    protected function removeOptionalPackages(string $installedBroadcaster, string $installedPush): void
     {
-        foreach ($this->optionalPackages as $package => $checkClass) {
-            if (! $this->composer->isInstalled($checkClass)) {
+        // Only remove packages that were installed by TalkBridge
+        $toRemove = [];
+
+        // Broadcaster package
+        match ($installedBroadcaster) {
+            'reverb' => $toRemove[] = 'laravel/reverb',
+            'pusher' => $toRemove[] = 'pusher/pusher-php-server',
+            'ably'   => $toRemove[] = 'ably/ably-php',
+            default  => null,
+        };
+
+        // Push packages
+        if (in_array($installedPush, ['fcm', 'both'])) {
+            $toRemove[] = 'kreait/laravel-firebase';
+        }
+        if (in_array($installedPush, ['web', 'both'])) {
+            $toRemove[] = 'minishlink/web-push';
+        }
+
+        if (empty($toRemove)) {
+            $this->line('    No optional packages to remove.');
+            return;
+        }
+
+        foreach ($toRemove as $package) {
+            $checkClass = $this->optionalPackages[$package] ?? null;
+
+            // Skip if not actually installed
+            if ($checkClass && ! $this->composer->isInstalled($checkClass)) {
+                $this->line("    Not installed, skipping: {$package}");
                 continue;
             }
 
-            if ($this->option('force') || $this->confirm("    Remove {$package}?", false)) {
-                $this->line("    Removing {$package}...");
-                [$ok, $out] = $this->composer->remove($package);
+            $confirmed = $this->option('force')
+                || $this->confirm("    Remove {$package}?", true);
 
-                $ok
-                    ? $this->line("    Removed  ->  {$package}")
-                    : $this->warn("    Failed to remove {$package}:\n{$out}");
+            if (! $confirmed) {
+                $this->line("    Skipped: {$package}");
+                continue;
+            }
+
+            $this->line("    Removing {$package}...");
+            [$ok, $out] = $this->composer->remove($package);
+
+            if ($ok) {
+                $this->line("    Removed  ->  {$package}");
+            } else {
+                $this->warn("    Failed to remove {$package}. Remove manually:");
+                $this->line("      composer remove {$package}");
             }
         }
+    }
+
+    // =========================================================================
+    // Utilities
+    // =========================================================================
+
+    protected function readEnvValue(string $key): string
+    {
+        $envPath = base_path('.env');
+
+        if (! File::exists($envPath)) {
+            return '';
+        }
+
+        $content = File::get($envPath);
+
+        if (preg_match("/^{$key}=(.*)$/m", $content, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return '';
     }
 
     protected function resolveUserModelPath(): ?string
@@ -278,11 +381,10 @@ class UninstallCommand extends Command
         $this->newLine();
         $this->line('  Removed:');
         $this->line('    - HasTalkBridgeFeatures from User model');
-        $this->line('    - Database tables (unless --keep-data)');
-        $this->line('    - config/talkbridge.php');
-        $this->line('    - Published migrations and stubs');
-        $this->line('    - .env variables');
-        $this->line('    - Optional packages (unless --keep-packages)');
+        $this->line('    - Database tables (unless --keep-data was used)');
+        $this->line('    - config/talkbridge.php, migrations, stubs, lang');
+        $this->line('    - .env variables (only those TalkBridge added)');
+        $this->line('    - Optional packages (only those TalkBridge installed)');
         $this->newLine();
         $this->line('  To remove TalkBridge itself:');
         $this->line('    composer remove rahatulrabbi/talkbridge');
