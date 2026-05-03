@@ -1,5 +1,4 @@
 <?php
-
 namespace RahatulRabbi\TalkBridge\Commands;
 
 use Carbon\Carbon;
@@ -9,39 +8,30 @@ use RahatulRabbi\TalkBridge\Jobs\UnmuteConversationJob;
 
 class AutoUnmuteCommand extends Command
 {
-    protected $signature = 'chat:auto-unmute
-                            {--chunk=500 : Number of records to process per batch}';
-
+    protected $signature   = 'talkbridge:auto-unmute {--chunk=500}';
     protected $description = 'Queue auto-unmute jobs for expired muted conversations';
 
     public function handle(): int
     {
-        $chunkSize   = (int) $this->option('chunk');
-        $totalQueued = 0;
-        $connection  = config('laravel-chat.queue.connection');
-        $queue       = config('laravel-chat.queue.name');
+        $chunkSize  = (int) $this->option('chunk');
+        $total      = 0;
+        $connection = config('talkbridge.queue.connection');
+        $queue      = config('talkbridge.queue.name');
 
         DB::table('conversation_participants')
             ->where('is_muted', true)
             ->whereNotNull('muted_until')
             ->where('muted_until', '<=', Carbon::now())
             ->select('id', 'user_id', 'conversation_id')
-            ->chunkById($chunkSize, function ($rows) use (&$totalQueued, $connection, $queue) {
+            ->chunkById($chunkSize, function ($rows) use (&$total, $connection, $queue) {
                 foreach ($rows as $row) {
-                    UnmuteConversationJob::dispatch(
-                        $row->id,
-                        $row->user_id,
-                        $row->conversation_id
-                    )->onConnection($connection)->onQueue($queue);
-
-                    $totalQueued++;
+                    UnmuteConversationJob::dispatch($row->id, $row->user_id, $row->conversation_id)
+                        ->onConnection($connection)->onQueue($queue);
+                    $total++;
                 }
             });
 
-        if ($totalQueued > 0) {
-            $this->line("Queued {$totalQueued} unmute job(s).");
-        }
-
+        if ($total > 0) $this->line("Queued {$total} unmute job(s).");
         return self::SUCCESS;
     }
 }

@@ -6,8 +6,6 @@ return [
     |--------------------------------------------------------------------------
     | User Model
     |--------------------------------------------------------------------------
-    | The fully qualified class name of your application's User model.
-    |
     */
     'user_model' => \App\Models\User::class,
 
@@ -15,50 +13,48 @@ return [
     |--------------------------------------------------------------------------
     | User Field Mapping
     |--------------------------------------------------------------------------
-    | Map your User model columns to the names the package expects internally.
-    | Change the values to match your actual database column names.
+    | Map your User model columns to TalkBridge's expected field names.
+    | Supports composite name fields: set 'name' to an array for multi-column names.
     |
-    | Example: if your column is "profile_photo" instead of "avatar_path",
-    | set 'avatar' => 'profile_photo'
+    | Examples:
+    |   Single column:   'name' => 'name'
+    |   Two columns:     'name' => ['first_name', 'last_name']
+    |   Three columns:   'name' => ['f_name', 'm_name', 'l_name']
     |
     */
     'user_fields' => [
         'id'        => 'id',
-        'name'      => 'name',
-        'avatar'    => 'avatar_path',
-        'last_seen' => 'last_seen_at',
-        'is_active' => 'is_active',
+        'name'      => 'name',           // or ['first_name', 'last_name']
+        'avatar'    => 'avatar_path',    // change to your avatar column
+        'last_seen' => 'last_seen_at',   // change to your last_seen column
+        'is_active' => null,             // set to 'is_active' if your table has it
     ],
 
     /*
     |--------------------------------------------------------------------------
     | Online Threshold
     |--------------------------------------------------------------------------
-    | Number of minutes after the last seen timestamp before a user is
-    | considered offline. Default: 2 minutes.
+    | Minutes after last_seen before a user is considered offline.
     |
     */
-    'online_threshold_minutes' => env('CHAT_ONLINE_THRESHOLD', 2),
+    'online_threshold_minutes' => env('TALKBRIDGE_ONLINE_THRESHOLD', 2),
 
     /*
     |--------------------------------------------------------------------------
     | Routing
     |--------------------------------------------------------------------------
-    | Control the package's built-in API routes.
-    | Set 'enabled' to false if you want to define routes manually.
-    |
     */
     'routing' => [
         'enabled'    => true,
-        'prefix'     => env('CHAT_ROUTE_PREFIX', 'api/v1'),
-        'middleware' => ['api', 'auth:sanctum', 'laravel-chat.last-seen'],
+        'prefix'     => env('TALKBRIDGE_ROUTE_PREFIX', 'api/v1'),
+        'middleware' => ['api', 'auth:sanctum', 'talkbridge.last-seen'],
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Broadcasting Driver
+    | Broadcasting
     |--------------------------------------------------------------------------
-    | Supported: "reverb", "pusher", "ably", "log", "null"
+    | Supported drivers: "reverb", "pusher", "ably", "log", "null"
     |
     */
     'broadcasting' => [
@@ -84,16 +80,46 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | File Uploads
+    | Push Notifications
     |--------------------------------------------------------------------------
-    | Configure storage for message attachments and group avatars.
+    | Supported providers: "none", "fcm", "web", "both"
+    |
+    |   none  — no push notifications
+    |   fcm   — Firebase Cloud Messaging (mobile: Android + iOS)
+    |   web   — Browser Web Push via VAPID (desktop browsers)
+    |   both  — FCM + Web Push together
+    |
+    | FCM requires: kreait/laravel-firebase
+    | Web Push requires: minishlink/web-push
     |
     */
+    'push_notifications' => [
+        'provider' => env('TALKBRIDGE_PUSH_PROVIDER', 'none'),
+
+        'fcm' => [
+            'credentials_file' => env(
+                'FIREBASE_CREDENTIALS',
+                storage_path('app/firebase/service-account.json')
+            ),
+        ],
+
+        'web_push' => [
+            'vapid_public_key'  => env('VAPID_PUBLIC_KEY', ''),
+            'vapid_private_key' => env('VAPID_PRIVATE_KEY', ''),
+            'subject'           => env('VAPID_SUBJECT', 'mailto:admin@example.com'),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | File Uploads
+    |--------------------------------------------------------------------------
+    */
     'uploads' => [
-        'disk'              => env('CHAT_UPLOAD_DISK', 'public'),
+        'disk'              => env('TALKBRIDGE_UPLOAD_DISK', 'public'),
         'message_path'      => 'uploads/messages',
         'group_avatar_path' => 'uploads/groups/avatars',
-        'max_file_size_kb'  => env('CHAT_MAX_FILE_SIZE', 51200),
+        'max_file_size_kb'  => env('TALKBRIDGE_MAX_FILE_SIZE', 51200),
         'allowed_types'     => [
             'image' => ['jpg', 'jpeg', 'png', 'gif', 'webp'],
             'video' => ['mp4', 'mov', 'avi', 'mkv', 'webm'],
@@ -104,25 +130,10 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Push Notifications
-    |--------------------------------------------------------------------------
-    | Requires kreait/laravel-firebase. Place your Firebase service account
-    | JSON at: storage/app/firebase/service-account.json
-    |
-    */
-    'push_notifications' => [
-        'enabled'  => env('CHAT_PUSH_NOTIFICATIONS', false),
-        'provider' => 'fcm',
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
     | Invite URL
     |--------------------------------------------------------------------------
-    | Base URL used when generating group invite links.
-    |
     */
-    'invite_url' => env('CHAT_INVITE_URL', null),
+    'invite_url' => env('TALKBRIDGE_INVITE_URL', null),
 
     /*
     |--------------------------------------------------------------------------
@@ -155,8 +166,6 @@ return [
     |--------------------------------------------------------------------------
     | Group Defaults
     |--------------------------------------------------------------------------
-    | Default group_settings values when a new group is created.
-    |
     */
     'group_defaults' => [
         'allow_members_to_send_messages'           => true,
@@ -172,9 +181,9 @@ return [
     |--------------------------------------------------------------------------
     */
     'cache' => [
-        'enabled' => env('CHAT_CACHE_ENABLED', true),
-        'ttl'     => env('CHAT_CACHE_TTL', 300),
-        'prefix'  => 'laravel_chat',
+        'enabled' => env('TALKBRIDGE_CACHE_ENABLED', true),
+        'ttl'     => env('TALKBRIDGE_CACHE_TTL', 300),
+        'prefix'  => 'talkbridge',
     ],
 
     /*
@@ -183,8 +192,8 @@ return [
     |--------------------------------------------------------------------------
     */
     'queue' => [
-        'connection' => env('CHAT_QUEUE_CONNECTION', env('QUEUE_CONNECTION', 'sync')),
-        'name'       => env('CHAT_QUEUE_NAME', 'chat'),
+        'connection' => env('TALKBRIDGE_QUEUE_CONNECTION', env('QUEUE_CONNECTION', 'sync')),
+        'name'       => env('TALKBRIDGE_QUEUE_NAME', 'talkbridge'),
     ],
 
 ];

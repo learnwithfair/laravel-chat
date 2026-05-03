@@ -1,27 +1,34 @@
 <?php
 
 use Illuminate\Support\Facades\Broadcast;
-use RahatulRabbi\TalkBridge\Models\Conversation;
 use RahatulRabbi\TalkBridge\Models\ConversationParticipant;
 
-$avatarField = config('laravel-chat.user_fields.avatar', 'avatar_path');
+/*
+|--------------------------------------------------------------------------
+| TalkBridge Broadcast Channels
+|--------------------------------------------------------------------------
+| Registered automatically by TalkBridgeServiceProvider after all
+| providers have booted. No manual registration required.
+|
+*/
 
-// Global online presence channel
-Broadcast::channel('online', function ($user) use ($avatarField) {
+Broadcast::channel('online', function ($user) {
+    $avatarField = config('talkbridge.user_fields.avatar', 'avatar_path');
+
     return [
         'id'     => $user->id,
-        'name'   => $user->name,
+        'name'   => talkbridge_user_name($user),
         'avatar' => $user->{$avatarField} ?? null,
     ];
 });
 
-// Per-user private channel (personal notifications)
 Broadcast::channel('user.{userId}', function ($user, $userId) {
     return (int) $user->id === (int) $userId;
 });
 
-// Conversation presence channel (messages, typing, online status)
-Broadcast::channel('conversation.{conversationId}', function ($user, $conversationId) use ($avatarField) {
+Broadcast::channel('conversation.{conversationId}', function ($user, $conversationId) {
+    $avatarField = config('talkbridge.user_fields.avatar', 'avatar_path');
+
     $isMember = ConversationParticipant::where('conversation_id', $conversationId)
         ->where('user_id', $user->id)
         ->where('is_active', true)
@@ -33,7 +40,7 @@ Broadcast::channel('conversation.{conversationId}', function ($user, $conversati
 
     return [
         'id'     => $user->id,
-        'name'   => $user->name,
+        'name'   => talkbridge_user_name($user),
         'avatar' => $user->{$avatarField} ?? null,
     ];
 });

@@ -1,22 +1,22 @@
-# Laravel Chat
+# TalkBridge
 
-A professional, real-time chat package for Laravel 11 and 12.
+**Real-time chat package for Laravel 11, 12 and 13.**
 
-Supports private and group conversations, message reactions, file attachments, message status tracking (sent / delivered / seen), typing indicators, user blocking, group management, FCM push notifications, and WebSocket broadcasting via Laravel Reverb or Pusher.
+Private and group conversations, message reactions, file attachments, message status tracking (sent / delivered / seen), typing indicators, user blocking, group management, FCM and Web Push notifications, WebSocket broadcasting via Reverb or Pusher.
 
-**Everything is automatic — install and uninstall touch zero files manually.**
+**Zero manual steps. Install once, everything is configured automatically.**
 
 ---
 
 ## Requirements
 
-| Dependency              | Version       |
-|-------------------------|---------------|
-| PHP                     | 8.2 or higher |
-| Laravel                 | 11.x or 12.x  |
-| Laravel Sanctum         | 4.x           |
-| Laravel Reverb          | 1.x (optional — Reverb driver) |
-| kreait/laravel-firebase | 5.x (optional — FCM push notifications) |
+| Dependency | Version |
+|---|---|
+| PHP | 8.2 or higher |
+| Laravel | 11.x or 12.x or 13.x |
+| Laravel Sanctum | 4.x |
+
+All optional packages (Reverb, Pusher, Firebase, Web Push) are installed automatically based on your choices during `talkbridge:install`.
 
 ---
 
@@ -31,217 +31,211 @@ composer require rahatulrabbi/talkbridge
 ### Step 2 — Run the wizard
 
 ```bash
-php artisan chat:install
+php artisan talkbridge:install
 ```
 
-That is all. The wizard does everything automatically:
-
-| What                              | How                                      |
-|-----------------------------------|------------------------------------------|
-| Config file                       | Published to `config/laravel-chat.php`   |
-| Database migrations               | Published to `database/migrations/`      |
-| .env variables                    | Written automatically                    |
-| `HasChatFeatures` trait           | Injected into `App\Models\User`          |
-| Middleware alias `last-seen`      | Auto-registered by ServiceProvider       |
-| Scheduler `chat:auto-unmute`      | Auto-registered by ServiceProvider       |
-| Broadcast channels                | Auto-registered by ServiceProvider       |
-| API routes under `api/v1`         | Auto-registered by ServiceProvider       |
-
-No edits to `bootstrap/app.php`, `routes/channels.php`, or `App\Models\User` are needed.
-
-### Step 3 — Start the WebSocket server
+### Step 3 - Update via composer (if needed)
 
 ```bash
-php artisan reverb:start --debug
+composer update rahatulrabbi/talkbridge
 ```
 
-### Step 4 — Start the queue worker
+The wizard prompts you for:
 
-```bash
-php artisan queue:work --queue=chat
-```
+| Prompt | Options |
+|---|---|
+| Broadcasting driver | `reverb` `pusher` `ably` `log` `null` |
+| Push notification provider | `none` `fcm` `web` `both` |
+| Run migrations now? | yes / no |
+
+Based on your answers it automatically:
+
+| Action | How |
+|---|---|
+| Installs broadcaster package | `composer require laravel/reverb` or `pusher/pusher-php-server` |
+| Installs push notification package | `composer require kreait/laravel-firebase` and/or `minishlink/web-push` |
+| Publishes `config/talkbridge.php` | `vendor:publish` |
+| Publishes migrations | `vendor:publish` |
+| Writes all `.env` variables | File::append |
+| Injects `HasTalkBridgeFeatures` into User model | Marker-based AST injection |
+| Adds `last_seen_at` to `$fillable` (if model uses fillable) | Regex patch |
+| Registers middleware alias `talkbridge.last-seen` | ServiceProvider |
+| Registers scheduler `talkbridge:auto-unmute` every minute | ServiceProvider |
+| Registers broadcast channels | ServiceProvider |
+| Registers API routes under `api/v1` | ServiceProvider |
+| Runs migrations | Artisan::call |
 
 ---
 
 ## What gets injected into your User model
 
-During install, the following trait is injected automatically into `App\Models\User`:
-
 ```php
-// @laravel-chat:use-start
-use \RahatulRabbi\TalkBridge\Traits\HasChatFeatures;
-// @laravel-chat:use-end
+// @talkbridge:start
+use \RahatulRabbi\TalkBridge\Traits\HasTalkBridgeFeatures;
+// @talkbridge:end
 ```
 
-The `HasChatFeatures` trait provides:
+The `HasTalkBridgeFeatures` trait provides:
 
+- `getChatDisplayName()` — dynamic name, supports composite columns
+- `getChatAvatar()` — avatar from configured column
+- `getChatLastSeen()` — human diff of last_seen_at
+- `isOnline()` — checks against configured threshold
 - `blockedUsers()` / `blockedByUsers()` / `hasBlocked()` / `isBlockedBy()`
 - `restrictedUsers()` / `restrictedByUsers()` / `hasRestricted()`
-- `deviceTokens()` — for FCM push notifications
-- `isOnline()` — checks `last_seen_at` against the configured threshold
-
-On uninstall, the markers are used to locate and remove these lines cleanly.
+- `deviceTokens()` — for push notifications
 
 ---
 
 ## Configuration
 
-After publishing, open `config/laravel-chat.php`. The most important section is `user_fields`:
+Open `config/talkbridge.php`. The most important section:
 
 ```php
 'user_fields' => [
     'id'        => 'id',
-    'name'      => 'name',
-    'avatar'    => 'avatar_path',     // change to your column name
-    'last_seen' => 'last_seen_at',    // change to your column name
+    'name'      => 'name',             // single column
+    // 'name'   => ['first_name', 'last_name'],   // composite name
+    // 'name'   => ['f_name', 'm_name', 'l_name'], // three parts
+    'avatar'    => 'avatar_path',      // your avatar column
+    'last_seen' => 'last_seen_at',     // your last_seen column
+    'is_active' => null,               // set to 'is_active' if you have it
 ],
 ```
 
-All other options have sensible defaults. Full reference:
+Full config reference:
 
-| Key                          | Default         | Description                                |
-|------------------------------|-----------------|--------------------------------------------|
-| `user_model`                 | `App\Models\User` | Your User model class                    |
-| `online_threshold_minutes`   | `2`             | Minutes before user is considered offline  |
-| `routing.enabled`            | `true`          | Disable to define routes manually          |
-| `routing.prefix`             | `api/v1`        | URL prefix for all chat routes             |
-| `routing.middleware`         | see config      | Middleware stack for chat routes           |
-| `broadcasting.driver`        | `reverb`        | `reverb` or `pusher`                       |
-| `uploads.disk`               | `public`        | Laravel storage disk for file uploads      |
-| `uploads.max_file_size_kb`   | `51200`         | 50 MB limit                                |
-| `push_notifications.enabled` | `false`         | Enable FCM notifications                   |
-| `invite_url`                 | APP_URL based   | Base URL for group invite links            |
-| `queue.name`                 | `chat`          | Queue name for async jobs                  |
+| Key | Default | Description |
+|---|---|---|
+| `user_model` | `App\Models\User` | Your User model |
+| `user_fields.name` | `'name'` | Single column or array for composite |
+| `user_fields.avatar` | `'avatar_path'` | Avatar column name |
+| `user_fields.last_seen` | `'last_seen_at'` | Last seen column name |
+| `online_threshold_minutes` | `2` | Minutes before user goes offline |
+| `routing.enabled` | `true` | Disable to define routes manually |
+| `routing.prefix` | `api/v1` | URL prefix |
+| `broadcasting.driver` | `reverb` | `reverb` or `pusher` |
+| `push_notifications.provider` | `none` | `none` `fcm` `web` `both` |
+| `uploads.disk` | `public` | Storage disk |
+| `uploads.max_file_size_kb` | `51200` | 50 MB |
+| `queue.name` | `talkbridge` | Queue name for async jobs |
 
 ---
 
 ## Artisan Commands
 
-| Command                              | Description                                      |
-|--------------------------------------|--------------------------------------------------|
-| `php artisan chat:install`           | Install wizard — fully automatic                 |
-| `php artisan chat:uninstall`         | Remove everything — fully automatic              |
-| `php artisan chat:uninstall --keep-data` | Uninstall but keep database tables           |
-| `php artisan chat:publish --tag=config` | Re-publish only the config                   |
-| `php artisan chat:publish --tag=migrations` | Re-publish only migrations               |
-| `php artisan chat:publish --tag=stubs` | Publish stubs for customization              |
-| `php artisan chat:auto-unmute`       | Process expired mutes (auto-run by scheduler)    |
+| Command | Description |
+|---|---|
+| `php artisan talkbridge:install` | Install wizard — fully automatic |
+| `php artisan talkbridge:uninstall` | Remove everything — fully automatic |
+| `php artisan talkbridge:uninstall --keep-data` | Uninstall but keep tables |
+| `php artisan talkbridge:uninstall --keep-packages` | Uninstall but keep optional packages |
+| `php artisan talkbridge:publish --tag=config` | Re-publish config |
+| `php artisan talkbridge:publish --tag=migrations` | Re-publish migrations |
+| `php artisan talkbridge:publish --tag=stubs` | Publish customization stubs |
+| `php artisan talkbridge:auto-unmute` | Process expired mutes (auto-run by scheduler) |
 
 ---
 
 ## API Endpoints
 
-All endpoints are prefixed with `/api/v1` and require Sanctum authentication.
+All under `/api/v1` with Sanctum auth.
 
 ### Conversations
-
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET    | `/conversations` | List all conversations |
-| POST   | `/conversations` | Create group |
-| POST   | `/conversations/private` | Start or get private conversation |
-| DELETE | `/conversations/{id}` | Remove conversation for self only |
-| GET    | `/conversations/{id}/media` | Media library (images, video, audio, files, links) |
+|---|---|---|
+| GET | `/conversations` | List all |
+| POST | `/conversations` | Create group |
+| POST | `/conversations/private` | Start private |
+| DELETE | `/conversations/{id}` | Remove for self |
+| GET | `/conversations/{id}/media` | Media library |
 
 ### Messages
-
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST   | `/messages` | Send message |
-| GET    | `/messages/{conversation}` | Get paginated messages |
-| PUT    | `/messages/{message}` | Edit message |
-| DELETE | `/messages/delete-for-me` | Delete for current user only |
-| DELETE | `/messages/delete-for-everyone` | Unsend for all participants |
-| GET    | `/messages/seen/{conversation}` | Mark all messages seen (on open) |
-| POST   | `/messages/mark-seen` | Mark specific message IDs seen |
-| GET    | `/messages/delivered/{conversation}` | Mark as delivered |
-| POST   | `/messages/{message}/forward` | Forward to other conversations |
-| POST   | `/messages/{message}/toggle-pin` | Pin or unpin |
-| GET    | `/messages/{conversation}/pinned-messages` | Get pinned messages |
+|---|---|---|
+| POST | `/messages` | Send |
+| GET | `/messages/{conversation}` | Get paginated |
+| PUT | `/messages/{message}` | Edit |
+| DELETE | `/messages/delete-for-me` | Delete for self |
+| DELETE | `/messages/delete-for-everyone` | Unsend |
+| GET | `/messages/seen/{conversation}` | Mark all seen |
+| POST | `/messages/mark-seen` | Mark specific seen |
+| GET | `/messages/delivered/{conversation}` | Mark delivered |
+| POST | `/messages/{message}/forward` | Forward |
+| POST | `/messages/{message}/toggle-pin` | Pin / unpin |
+| GET | `/messages/{conversation}/pinned-messages` | Get pinned |
 
 ### Reactions
-
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST   | `/messages/{message}/reaction` | Toggle reaction (body: `{"reaction":"❤️"}`) |
-| GET    | `/messages/{message}/reaction` | List all reactions grouped by type |
+|---|---|---|
+| POST | `/messages/{message}/reaction` | Toggle `{"reaction":"❤️"}` |
+| GET | `/messages/{message}/reaction` | List all reactions |
 
 ### Group Management
-
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST   | `/group/{id}/update` | Update name, description, avatar, settings |
-| POST   | `/group/{id}/members/add` | Add members |
-| POST   | `/group/{id}/members/remove` | Remove members |
-| GET    | `/group/{id}/members` | List all members |
-| POST   | `/group/{id}/admins/add` | Promote to admin |
-| POST   | `/group/{id}/admins/remove` | Demote to member |
-| POST   | `/group/{id}/mute` | Mute (body: `{"minutes": 60}` / `-1` = forever / `0` = unmute) |
-| POST   | `/group/{id}/leave` | Leave group |
-| DELETE | `/group/{id}/delete-group` | Delete group (super_admin only) |
-| POST   | `/group/{id}/regenerate-invite` | Regenerate invite link |
-| GET    | `/accept-invite/{token}` | Join via invite link |
+|---|---|---|
+| POST | `/group/{id}/update` | Update name, avatar, settings |
+| POST | `/group/{id}/members/add` | Add members |
+| POST | `/group/{id}/members/remove` | Remove members |
+| GET | `/group/{id}/members` | List members |
+| POST | `/group/{id}/admins/add` | Promote to admin |
+| POST | `/group/{id}/admins/remove` | Demote |
+| POST | `/group/{id}/mute` | Mute `{"minutes":60}` / `-1`=forever / `0`=unmute |
+| POST | `/group/{id}/leave` | Leave |
+| DELETE | `/group/{id}/delete-group` | Delete (super_admin only) |
+| POST | `/group/{id}/regenerate-invite` | New invite link |
+| GET | `/accept-invite/{token}` | Join via link |
 
 ### Users
-
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET    | `/available-users?search=name` | Search users to start conversation |
-| GET    | `/online-users` | Currently online users |
-| POST   | `/users/{user}/block-toggle` | Block or unblock |
-| POST   | `/users/{user}/restrict-toggle` | Restrict or unrestrict |
+|---|---|---|
+| GET | `/available-users?search=name` | Search users |
+| GET | `/online-users` | Online users |
+| POST | `/users/{user}/block-toggle` | Block / unblock |
+| POST | `/users/{user}/restrict-toggle` | Restrict / unrestrict |
 
 ---
 
 ## Real-Time Events
 
-### ConversationEvent
+### ConversationEvent — channel: `user.{id}` or `conversation.{id}`
 
-Broadcast to `user.{userId}` (private channel) when `targetUserId` is set, otherwise to `conversation.{id}` (presence channel).
-
-| Action | Trigger |
-|--------|---------|
-| `added` | User added to or created a conversation |
-| `removed` | User removed from group |
-| `left` | User left group |
-| `updated` | Group name / avatar / settings changed |
+| Action | When |
+|---|---|
+| `added` | Added to conversation |
+| `removed` | Removed from group |
+| `left` | Left group |
+| `updated` | Group info changed |
 | `deleted` | Group deleted |
-| `blocked` | User blocked |
-| `unblocked` | User unblocked |
-| `unmuted` | Conversation unmuted by scheduler |
-| `member_added` | New member joined |
-| `member_left` | Member left |
-| `admin_added` | Member promoted to admin |
-| `admin_removed` | Admin demoted to member |
+| `blocked` / `unblocked` | Block toggled |
+| `unmuted` | Auto-unmuted by scheduler |
+| `member_added` / `member_left` | Membership change |
+| `admin_added` / `admin_removed` | Role change |
 
-### MessageEvent
+### MessageEvent — channel: `conversation.{id}`
 
-Always broadcast to `conversation.{id}` (presence channel).
-
-| Type | Trigger |
-|------|---------|
-| `sent` | New message sent |
-| `updated` | Message edited |
-| `deleted_for_everyone` | Message unsent |
-| `deleted_permanent` | Already-unsent message hard deleted |
-| `reaction` | Reaction added or removed |
-| `delivered` | Message delivered to recipient |
-| `seen` | Message seen by recipient |
-| `pinned` | Message pinned |
-| `unpinned` | Message unpinned |
+| Type | When |
+|---|---|
+| `sent` | New message |
+| `updated` | Edited |
+| `deleted_for_everyone` | Unsent |
+| `deleted_permanent` | Hard deleted |
+| `reaction` | Reaction toggled |
+| `delivered` / `seen` | Status update |
+| `pinned` / `unpinned` | Pin toggled |
 
 ---
 
-## Frontend Integration — Vue 3
+## Frontend Integration
 
-### Install dependencies
+### Vue 3 / React (Web)
 
+Install:
 ```bash
 npm install laravel-echo pusher-js
 ```
 
-### resources/js/echo.js (Reverb)
-
+Echo setup (Reverb) — copy from `stubs/talkbridge/echo-reverb.stub`:
 ```javascript
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
@@ -250,49 +244,19 @@ import axios from 'axios';
 window.Pusher = Pusher;
 window.axios  = axios;
 axios.defaults.withCredentials = true;
-
-const wsHost   = import.meta.env.VITE_REVERB_HOST   ?? window.location.hostname;
-const port     = Number(import.meta.env.VITE_REVERB_PORT ?? 80);
-const forceTLS = (import.meta.env.VITE_REVERB_SCHEME ?? 'http') === 'https';
 
 window.Echo = new Echo({
     broadcaster:       'reverb',
     key:               import.meta.env.VITE_REVERB_APP_KEY,
-    wsHost,
-    wsPort:            port,
-    wssPort:           port,
-    forceTLS,
+    wsHost:            import.meta.env.VITE_REVERB_HOST ?? window.location.hostname,
+    wsPort:            Number(import.meta.env.VITE_REVERB_PORT ?? 8080),
+    wssPort:           Number(import.meta.env.VITE_REVERB_PORT ?? 8080),
+    forceTLS:          (import.meta.env.VITE_REVERB_SCHEME ?? 'http') === 'https',
     enabledTransports: ['ws', 'wss'],
 });
 ```
 
-Import once in `resources/js/app.js`:
-
-```javascript
-import './echo';
-```
-
-### resources/js/echo.js (Pusher)
-
-```javascript
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
-import axios from 'axios';
-
-window.Pusher = Pusher;
-window.axios  = axios;
-axios.defaults.withCredentials = true;
-
-window.Echo = new Echo({
-    broadcaster: 'pusher',
-    key:         import.meta.env.VITE_PUSHER_APP_KEY,
-    cluster:     import.meta.env.VITE_PUSHER_APP_CLUSTER,
-    forceTLS:    true,
-});
-```
-
-### Channel subscriptions
-
+Channel subscriptions:
 ```javascript
 // Global online presence
 window.Echo.join('online')
@@ -300,152 +264,38 @@ window.Echo.join('online')
     .joining(user => { onlineUsers.value.push(user); })
     .leaving(user => { onlineUsers.value = onlineUsers.value.filter(u => u.id !== user.id); });
 
-// Personal notifications (conversation added/removed/blocked etc.)
+// Personal channel
 window.Echo.private(`user.${authUser.id}`)
     .listen('.ConversationEvent', event => handleConversationEvent(event));
 
-// Conversation channel (messages + presence)
+// Conversation channel
 const channel = window.Echo.join(`conversation.${conversationId}`)
     .listen('.MessageEvent',      event => handleMessageEvent(event))
     .listen('.ConversationEvent', event => handleConversationEvent(event))
-    .listenForWhisper('typing',   data  => handleTyping(data))
-    .here(users  => { activeUsers.value = users; })
-    .joining(user => { activeUsers.value.push(user); })
-    .leaving(user => { activeUsers.value = activeUsers.value.filter(u => u.id !== user.id); });
-```
+    .listenForWhisper('typing',   data  => handleTyping(data));
 
-### Typing indicator
-
-```javascript
-// Sender side
+// Typing indicator — sender
 channel.whisper('typing', { userId: authUser.id, name: authUser.name, isTyping: true });
-
-// Receiver side
-channel.listenForWhisper('typing', ({ name, isTyping }) => {
-    if (isTyping) {
-        typingUser.value = name;
-        clearTimeout(typingTimer);
-        typingTimer = setTimeout(() => { typingUser.value = null; }, 3000);
-    }
-});
 ```
 
----
+### Flutter & React Native
 
-## Frontend Integration — React
-
-### Install dependencies
-
-```bash
-npm install laravel-echo pusher-js
-```
-
-### src/echo.js (Reverb)
-
-```javascript
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
-import axios from 'axios';
-
-window.Pusher = Pusher;
-window.axios  = axios;
-axios.defaults.withCredentials = true;
-
-const wsHost   = import.meta.env.VITE_REVERB_HOST   ?? window.location.hostname;
-const port     = Number(import.meta.env.VITE_REVERB_PORT ?? 80);
-const forceTLS = (import.meta.env.VITE_REVERB_SCHEME ?? 'http') === 'https';
-
-const echo = new Echo({
-    broadcaster:       'reverb',
-    key:               import.meta.env.VITE_REVERB_APP_KEY,
-    wsHost,
-    wsPort:            port,
-    wssPort:           port,
-    forceTLS,
-    enabledTransports: ['ws', 'wss'],
-});
-
-export default echo;
-```
-
-### useChat hook
-
-```javascript
-import { useEffect, useRef, useState } from 'react';
-import echo from '../echo';
-
-export function useChat(conversationId, userId) {
-    const channelRef       = useRef(null);
-    const [messages, setMessages]   = useState([]);
-    const [typingUser, setTypingUser] = useState(null);
-    const typingTimer = useRef(null);
-
-    useEffect(() => {
-        if (! conversationId) return;
-
-        channelRef.current = echo
-            .join(`conversation.${conversationId}`)
-            .listen('.MessageEvent', ({ type, payload }) => {
-                if (type === 'sent')               setMessages(prev => [payload, ...prev]);
-                if (type === 'deleted_for_everyone') setMessages(prev => prev.map(m => m.id === payload.id ? payload : m));
-                if (type === 'seen')               { /* update statuses */ }
-                if (type === 'reaction')           { /* update reactions */ }
-            })
-            .listen('.ConversationEvent', ({ action }) => {
-                if (action === 'member_added') { /* refresh members */ }
-            })
-            .listenForWhisper('typing', ({ name, isTyping }) => {
-                if (isTyping) {
-                    setTypingUser(name);
-                    clearTimeout(typingTimer.current);
-                    typingTimer.current = setTimeout(() => setTypingUser(null), 3000);
-                }
-            });
-
-        const userChannel = echo
-            .private(`user.${userId}`)
-            .listen('.ConversationEvent', ({ action }) => {
-                if (action === 'added') { /* add conversation to sidebar list */ }
-            });
-
-        return () => {
-            echo.leave(`conversation.${conversationId}`);
-            echo.leave(`user.${userId}`);
-        };
-    }, [conversationId, userId]);
-
-    const sendTyping = () => {
-        channelRef.current?.whisper('typing', { userId, isTyping: true });
-    };
-
-    return { messages, typingUser, sendTyping };
-}
-```
+See `docs/mobile/README.md`, `docs/mobile/flutter_integration.dart`, and `docs/mobile/react_native_integration.ts` for complete integration files.
 
 ---
 
 ## Uninstall
 
 ```bash
-php artisan chat:uninstall
+php artisan talkbridge:uninstall
 ```
 
-This removes automatically:
-
-- `HasChatFeatures` trait from `App\Models\User`
+Removes automatically:
+- `HasTalkBridgeFeatures` from `App\Models\User` (and `last_seen_at` from `$fillable`)
 - All chat database tables
-- `config/laravel-chat.php`
-- Published migration files
-- Published stubs
-- All `CHAT_*` and broadcaster `.env` variables
-
-To keep the database tables:
-
-```bash
-php artisan chat:uninstall --keep-data
-```
-
-To remove the Composer package after uninstalling:
+- `config/talkbridge.php`, published migrations, stubs
+- All `TALKBRIDGE_*` and broadcaster `.env` variables
+- Optional packages (Reverb, Pusher, Firebase, Web Push) — with confirmation per package
 
 ```bash
 composer remove rahatulrabbi/talkbridge
@@ -453,26 +303,8 @@ composer remove rahatulrabbi/talkbridge
 
 ---
 
-## Changelog
-
-### v1.0.0
-
-- Initial release
-- Zero-touch install and uninstall
-- Private and group conversations
-- Real-time broadcasting via Reverb and Pusher
-- Message reactions, replies, forwarding, pinning
-- Message status: sent, delivered, seen
-- File attachments with media library
-- Group roles: super_admin / admin / member
-- Group invite links with expiry and usage limits
-- Mute / unmute (timed or indefinite) with auto-unmute scheduler
-- User blocking and restricting
-- FCM push notifications via kreait/laravel-firebase
-- Vue 3 and React integration guide
-
----
-
 ## License
 
-MIT License.
+MIT — see [LICENSE](LICENSE).
+
+**Author:** MD. RAHATUL RABBI — [github.com/learnwithfair](https://github.com/learnwithfair)

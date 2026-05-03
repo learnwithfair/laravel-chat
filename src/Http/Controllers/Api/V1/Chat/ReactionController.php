@@ -13,7 +13,6 @@ class ReactionController extends Controller {
     }
     public function toggleReaction(Request $request, int $messageId) {
         $request->validate(['reaction' => 'required|string']);
-        $reaction = $this->chatService->toggleReaction(Auth::user(), $messageId, $request->reaction);
-        return $this->success($reaction, 'Reaction updated.');
+        return $this->success($this->chatService->toggleReaction(Auth::user(), $messageId, $request->reaction), 'Reaction updated.');
     }
 }

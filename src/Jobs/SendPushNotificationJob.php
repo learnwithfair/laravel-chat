@@ -16,22 +16,36 @@ class SendPushNotificationJob implements ShouldQueue
     public int $timeout = 30;
 
     public function __construct(
-        public array       $tokens,
-        public ?int        $userId,
-        public string      $title,
-        public string      $body,
-        public array       $data       = [],
-        public ?string     $type       = null,
-        public bool        $isDatabase = true
+        public array   $tokens,
+        public ?int    $userId,
+        public string  $title,
+        public string  $body,
+        public array   $data       = [],
+        public ?string $type       = null,
+        public bool    $isDatabase = true
     ) {}
 
     public function handle(): void
     {
-        if (empty($this->tokens)) {
-            return;
+        if (empty($this->tokens)) return;
+
+        $provider = config('talkbridge.push_notifications.provider', 'none');
+
+        if ($provider === 'none') return;
+
+        if (in_array($provider, ['fcm', 'both'], true)) {
+            $this->sendFcm();
         }
 
-        if (! config('laravel-chat.push_notifications.enabled', false)) {
+        if (in_array($provider, ['web', 'both'], true)) {
+            $this->sendWebPush();
+        }
+    }
+
+    protected function sendFcm(): void
+    {
+        if (! class_exists(\Kreait\Firebase\Contract\Messaging::class)) {
+            Log::warning('TalkBridge: kreait/laravel-firebase not installed. FCM skipped.');
             return;
         }
 
@@ -50,17 +64,60 @@ class SendPushNotificationJob implements ShouldQueue
             $report = $messaging->sendMulticast($message, $this->tokens);
 
             foreach ($report->failures()->getItems() as $failure) {
-                Log::warning('laravel-chat FCM failure: ' . $failure->error()->getMessage());
+                Log::warning('TalkBridge FCM failure: ' . $failure->error()->getMessage());
             }
         } catch (\Throwable $e) {
-            Log::error('laravel-chat SendPushNotificationJob failed: ' . $e->getMessage());
+            Log::error('TalkBridge SendPushNotificationJob (FCM): ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    protected function sendWebPush(): void
+    {
+        if (! class_exists(\Minishlink\WebPush\WebPush::class)) {
+            Log::warning('TalkBridge: minishlink/web-push not installed. Web push skipped.');
+            return;
+        }
+
+        try {
+            $config   = config('talkbridge.push_notifications.web_push');
+            $auth     = [
+                'VAPID' => [
+                    'subject'    => $config['vapid_subject'],
+                    'publicKey'  => $config['vapid_public_key'],
+                    'privateKey' => $config['vapid_private_key'],
+                ],
+            ];
+
+            $webPush = new \Minishlink\WebPush\WebPush($auth);
+            $payload = json_encode([
+                'title' => $this->title,
+                'body'  => $this->body,
+                'data'  => $this->data,
+            ]);
+
+            // $this->tokens are web push subscription JSON strings for web push
+            foreach ($this->tokens as $subscriptionJson) {
+                $subscription = \Minishlink\WebPush\Subscription::create(
+                    json_decode($subscriptionJson, true)
+                );
+                $webPush->queueNotification($subscription, $payload);
+            }
+
+            foreach ($webPush->flush() as $report) {
+                if (! $report->isSuccess()) {
+                    Log::warning('TalkBridge Web Push failure: ' . $report->getReason());
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('TalkBridge SendPushNotificationJob (WebPush): ' . $e->getMessage());
             throw $e;
         }
     }
 
     public function failed(\Throwable $exception): void
     {
-        Log::error('laravel-chat SendPushNotificationJob permanently failed', [
+        Log::error('TalkBridge SendPushNotificationJob permanently failed', [
             'user_id' => $this->userId,
             'error'   => $exception->getMessage(),
         ]);

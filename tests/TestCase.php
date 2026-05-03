@@ -1,9 +1,8 @@
 <?php
 namespace RahatulRabbi\TalkBridge\Tests;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
-use RahatulRabbi\TalkBridge\LaravelChatServiceProvider;
+use RahatulRabbi\TalkBridge\TalkBridgeServiceProvider;
 use RahatulRabbi\TalkBridge\Models\Conversation;
 use RahatulRabbi\TalkBridge\Models\ConversationParticipant;
 use RahatulRabbi\TalkBridge\Models\Message;
@@ -12,7 +11,7 @@ abstract class TestCase extends OrchestraTestCase
 {
     protected function getPackageProviders($app): array
     {
-        return [LaravelChatServiceProvider::class];
+        return [TalkBridgeServiceProvider::class];
     }
 
     protected function defineEnvironment($app): void
@@ -23,10 +22,10 @@ abstract class TestCase extends OrchestraTestCase
             'database' => ':memory:',
             'prefix'   => '',
         ]);
-
-        $app['config']->set('laravel-chat.user_model', \App\Models\User::class);
-        $app['config']->set('laravel-chat.routing.middleware', ['api']);
+        $app['config']->set('talkbridge.user_model', \App\Models\User::class);
+        $app['config']->set('talkbridge.routing.middleware', ['api']);
         $app['config']->set('broadcast.default', 'log');
+        $app['config']->set('talkbridge.push_notifications.provider', 'none');
     }
 
     protected function defineDatabaseMigrations(): void
@@ -34,26 +33,20 @@ abstract class TestCase extends OrchestraTestCase
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
     }
 
-    protected function createUser(array $attributes = []): \Illuminate\Database\Eloquent\Model
+    protected function createUser(array $attributes = [])
     {
-        $userModel = config('laravel-chat.user_model');
-        return $userModel::factory()->create($attributes);
+        return ($this->app['config']->get('talkbridge.user_model'))::factory()->create($attributes);
     }
 
-    protected function createConversation(\Illuminate\Database\Eloquent\Model $user, string $type = 'private'): Conversation
+    protected function createConversation($user, string $type = 'private'): Conversation
     {
         $conversation = Conversation::create(['type' => $type, 'name' => $type === 'group' ? 'Test Group' : null]);
         ConversationParticipant::create(['conversation_id' => $conversation->id, 'user_id' => $user->id, 'role' => 'member', 'is_active' => true]);
         return $conversation;
     }
 
-    protected function createMessage(Conversation $conversation, \Illuminate\Database\Eloquent\Model $sender, string $text = 'Test message'): Message
+    protected function createMessage(Conversation $conversation, $sender, string $text = 'Test message'): Message
     {
-        return Message::create([
-            'conversation_id' => $conversation->id,
-            'sender_id'       => $sender->id,
-            'message'         => $text,
-            'message_type'    => 'text',
-        ]);
+        return Message::create(['conversation_id' => $conversation->id, 'sender_id' => $sender->id, 'message' => $text, 'message_type' => 'text']);
     }
 }

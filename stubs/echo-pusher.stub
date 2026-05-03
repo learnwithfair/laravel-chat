@@ -1,4 +1,4 @@
-// resources/js/echo.js  — Pusher driver
+// resources/js/echo.js — Pusher driver
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 import axios from 'axios';

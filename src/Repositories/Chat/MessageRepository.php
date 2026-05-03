@@ -22,7 +22,7 @@ class MessageRepository
 {
     use ApiResponse;
 
-    protected function messageWith(): array
+    protected function withRelations(): array
     {
         return [
             'sender:id,name',
@@ -44,7 +44,7 @@ class MessageRepository
             ->when($participant->last_deleted_message_id, fn($q) => $q->where('id', '>', $participant->last_deleted_message_id))
             ->whereDoesntHave('deletions', fn($q) => $q->where('user_id', $user->id))
             ->when($query, fn($q) => $q->where('message', 'like', "%{$query}%"))
-            ->with($this->messageWith())
+            ->with($this->withRelations())
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
@@ -61,7 +61,7 @@ class MessageRepository
             ->when($participant->last_deleted_message_id, fn($q) => $q->where('id', '>', $participant->last_deleted_message_id))
             ->whereDoesntHave('deletions', fn($q) => $q->where('user_id', $user->id))
             ->when($query, fn($q) => $q->where('message', 'like', "%{$query}%"))
-            ->with($this->messageWith())
+            ->with($this->withRelations())
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
@@ -84,7 +84,7 @@ class MessageRepository
               ->whereDoesntHave('deletions', fn($q) => $q->where('user_id', $user->id));
         })->latest()->paginate($perPage);
 
-        $links = $this->extractConversationLinks($conversationId, $participant->last_deleted_message_id, $user->id);
+        $links = $this->extractLinks($conversationId, $participant->last_deleted_message_id, $user->id);
 
         return new MediaLibraryResource([
             'media'      => $attachments->whereIn('type', ['image', 'video'])->values(),
@@ -103,8 +103,8 @@ class MessageRepository
     public function storeMessage(Model $user, array $data)
     {
         if (empty($data['conversation_id']) && ! empty($data['receiver_id'])) {
-            $service = app(\RahatulRabbi\TalkBridge\Services\ChatService::class);
-            $data['conversation_id'] = $service->startConversation($user, $data['receiver_id'])->id;
+            $data['conversation_id'] = app(\RahatulRabbi\TalkBridge\Services\ChatService::class)
+                ->startConversation($user, $data['receiver_id'])->id;
         }
 
         $participant = ConversationParticipant::where('conversation_id', $data['conversation_id'])
@@ -142,14 +142,14 @@ class MessageRepository
             $this->cloneAttachments(Message::findOrFail($data['forward_to_message_id']), $message);
         } elseif (! empty($data['attachments'])) {
             foreach ($data['attachments'] as $file) {
-                $uploadedFile  = $file['path'];
-                $originalName  = $uploadedFile->getClientOriginalName();
-                $mediaPath     = chat_upload_file($uploadedFile, config('laravel-chat.uploads.message_path'), (string) Str::uuid());
+                $uploaded     = $file['path'];
+                $originalName = $uploaded->getClientOriginalName();
+                $mediaPath    = talkbridge_upload_file($uploaded, config('talkbridge.uploads.message_path'), (string) Str::uuid());
                 $message->attachments()->create([
                     'path' => $mediaPath,
-                    'type' => chat_get_file_type($mediaPath),
+                    'type' => talkbridge_file_type($mediaPath),
                     'name' => $originalName,
-                    'size' => $mediaPath && file_exists(public_path($mediaPath)) ? filesize(public_path($mediaPath)) : null,
+                    'size' => null,
                 ]);
             }
         }
@@ -177,16 +177,17 @@ class MessageRepository
 
         $conversation->touch();
 
-        if (config('laravel-chat.push_notifications.enabled', false)) {
-            $this->sendPushNotification($conversation, $message, $user);
+        $pushProvider = config('talkbridge.push_notifications.provider', 'none');
+        if ($pushProvider !== 'none') {
+            $this->dispatchPushNotification($conversation, $message, $user);
         }
 
-        $message->load($this->messageWith());
+        $message->load($this->withRelations());
+
+        $userModel = config('talkbridge.user_model');
 
         if ($deletedParticipants->isNotEmpty()) {
             $conversation->fresh()->load(['participants.user', 'lastMessage.sender', 'lastMessage.attachments', 'creator:id,name', 'groupSetting', 'activeInvites']);
-            $userModel = config('laravel-chat.user_model');
-
             foreach ($deletedParticipants as $p) {
                 $targetUser           = $userModel::find($p->user_id);
                 $conversationResource = (new ConversationResource($conversation))->forUser($targetUser)->toArray(request());
@@ -196,7 +197,6 @@ class MessageRepository
 
         if ($conversation->type === 'private' && ! $hadMessagesBefore) {
             $receiver = $conversation->otherParticipant($user);
-
             if ($receiver) {
                 $conversation->load(['participants.user', 'lastMessage.sender', 'lastMessage.attachments', 'creator:id,name', 'groupSetting', 'activeInvites']);
                 $conversationResource = (new ConversationResource($conversation))->forUser($receiver)->toArray(request());
@@ -210,23 +210,20 @@ class MessageRepository
     public function updateMessage(Model $user, array $data, Message $message)
     {
         if ($message->sender_id !== $user->id) {
-            throw new HttpResponseException($this->error(null, 'You are not allowed to edit this message.', 403));
+            throw new HttpResponseException($this->error(null, 'You cannot edit this message.', 403));
         }
 
         $data['edited_at'] = now();
         $message->update($data);
-        $message->load($this->messageWith());
+        $message->load($this->withRelations());
 
         return new MessageResource($message);
     }
 
     public function deleteMessagesForUser(int $userId, array $messageIds): string
     {
-        $messages = Message::whereIn('id', $messageIds)->get();
-
-        foreach ($messages as $message) {
-            $message->deletions()->firstOrCreate(['user_id' => $userId]);
-        }
+        Message::whereIn('id', $messageIds)->get()
+            ->each(fn($m) => $m->deletions()->firstOrCreate(['user_id' => $userId]));
 
         return 'Messages deleted for you.';
     }
@@ -240,21 +237,23 @@ class MessageRepository
                 throw new HttpResponseException($this->error(null, 'You can only delete your own messages.', 403));
             }
 
-            if ($message->is_deleted_for_everyone && $message->message === config('laravel-chat.messages.unsent_placeholder', 'Unsent')) {
-                $conversationId = $message->conversation_id;
-                $deletedId      = $message->id;
+            $placeholder = config('talkbridge.messages.unsent_placeholder', 'Unsent');
+
+            if ($message->is_deleted_for_everyone && $message->message === $placeholder) {
+                $cid = $message->conversation_id;
+                $mid = $message->id;
                 $message->delete();
-                broadcast(new MessageEvent('deleted_permanent', $conversationId, ['message_id' => $deletedId]));
+                broadcast(new MessageEvent('deleted_permanent', $cid, ['message_id' => $mid]));
                 continue;
             }
 
             $message->update([
                 'is_deleted_for_everyone' => true,
-                'message'                 => config('laravel-chat.messages.unsent_placeholder', 'Unsent'),
+                'message'                 => $placeholder,
                 'is_pinned'               => false,
             ]);
 
-            chat_delete_files($message->attachments->pluck('path')->toArray());
+            talkbridge_delete_files($message->attachments->pluck('path')->toArray());
             $message->attachments()->delete();
 
             broadcast(new MessageEvent('deleted_for_everyone', $message->conversation_id, $message->toArray()));
@@ -270,33 +269,28 @@ class MessageRepository
             $from->load('attachments');
         }
 
-        if ($from->attachments->isEmpty()) {
-            return;
-        }
+        if ($from->attachments->isEmpty()) return;
 
-        $rows = [];
-        foreach ($from->attachments as $file) {
-            $rows[] = [
-                'message_id' => $to->id,
-                'path'       => $file->path,
-                'type'       => $file->type,
-                'name'       => $file->name,
-                'size'       => $file->size,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
-        }
+        $rows = $from->attachments->map(fn($f) => [
+            'message_id' => $to->id,
+            'path'       => $f->path,
+            'type'       => $f->type,
+            'name'       => $f->name,
+            'size'       => $f->size,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ])->toArray();
 
         MessageAttachment::insert($rows);
     }
 
-    protected function sendPushNotification(Conversation $conversation, Message $message, Model $sender): void
+    protected function dispatchPushNotification(Conversation $conversation, Message $message, Model $sender): void
     {
         $participants = ConversationParticipant::where('conversation_id', $conversation->id)
             ->active()->unmuted()->with('user.deviceTokens')->get();
 
-        $connection = config('laravel-chat.queue.connection');
-        $queue      = config('laravel-chat.queue.name');
+        $connection = config('talkbridge.queue.connection');
+        $queue      = config('talkbridge.queue.name');
 
         foreach ($participants as $participant) {
             if ($participant->user_id === $sender->id) continue;
@@ -304,7 +298,7 @@ class MessageRepository
             $tokens = $participant->user?->deviceTokens->pluck('token')->filter()->toArray();
             if (empty($tokens)) continue;
 
-            $title = $sender->name ?? 'New Message';
+            $title = talkbridge_user_name($sender);
             $body  = $message->message_type === 'text' ? ($message->message ?: 'New message') : 'Sent an attachment';
 
             SendPushNotificationJob::dispatch(
@@ -324,22 +318,20 @@ class MessageRepository
         }
     }
 
-    private function extractConversationLinks(int $conversationId, ?int $lastDeletedMessageId, int $userId): array
+    protected function extractLinks(int $conversationId, ?int $lastDeletedId, int $userId): array
     {
         $messages = Message::where('conversation_id', $conversationId)
             ->whereNotNull('message')
             ->whereIn('message_type', ['text', 'multiple'])
-            ->when($lastDeletedMessageId, fn($q) => $q->where('id', '>', $lastDeletedMessageId))
+            ->when($lastDeletedId, fn($q) => $q->where('id', '>', $lastDeletedId))
             ->whereDoesntHave('deletions', fn($q) => $q->where('user_id', $userId))
             ->select('id', 'message', 'created_at')
-            ->latest()
-            ->get();
+            ->latest()->get();
 
         $links = [];
 
         foreach ($messages as $message) {
             preg_match_all('/https?:\/\/[^\s\)\]\}\>,"]+/i', $message->message, $matches);
-
             foreach (array_unique($matches[0] ?? []) as $url) {
                 $links[] = ['message_id' => $message->id, 'url' => $url, 'created_at' => $message->created_at];
             }

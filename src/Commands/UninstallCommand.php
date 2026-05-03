@@ -5,15 +5,19 @@ namespace RahatulRabbi\TalkBridge\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use RahatulRabbi\TalkBridge\Support\ComposerRunner;
 use RahatulRabbi\TalkBridge\Support\UserModelModifier;
 
-class UninstallChatCommand extends Command
+class UninstallCommand extends Command
 {
-    protected $signature = 'chat:uninstall
+    protected $signature = 'talkbridge:uninstall
                             {--force : Skip all confirmation prompts}
-                            {--keep-data : Do not drop database tables}';
+                            {--keep-data : Do not drop database tables}
+                            {--keep-packages : Do not remove installed optional packages}';
 
-    protected $description = 'Uninstall the Laravel Chat package — removes all injected code and published files';
+    protected $description = 'Uninstall TalkBridge — removes all injected code, files, and optional packages';
+
+    protected ComposerRunner $composer;
 
     protected array $chatTables = [
         'conversation_invites',
@@ -30,16 +34,21 @@ class UninstallChatCommand extends Command
         'user_blocks',
     ];
 
-    protected array $chatEnvKeys = [
+    protected array $envKeys = [
         'BROADCAST_DRIVER',
         'REVERB_APP_ID', 'REVERB_APP_KEY', 'REVERB_APP_SECRET',
         'REVERB_HOST', 'REVERB_PORT', 'REVERB_SCHEME',
         'VITE_REVERB_APP_KEY', 'VITE_REVERB_HOST', 'VITE_REVERB_PORT', 'VITE_REVERB_SCHEME',
         'PUSHER_APP_ID', 'PUSHER_APP_KEY', 'PUSHER_APP_SECRET', 'PUSHER_APP_CLUSTER',
         'VITE_PUSHER_APP_KEY', 'VITE_PUSHER_APP_CLUSTER',
-        'CHAT_ONLINE_THRESHOLD', 'CHAT_ROUTE_PREFIX', 'CHAT_UPLOAD_DISK',
-        'CHAT_PUSH_NOTIFICATIONS', 'CHAT_QUEUE_CONNECTION', 'CHAT_QUEUE_NAME',
-        'CHAT_INVITE_URL', 'CHAT_CACHE_ENABLED', 'CHAT_CACHE_TTL', 'CHAT_MAX_FILE_SIZE',
+        'ABLY_KEY',
+        'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT',
+        'TALKBRIDGE_ONLINE_THRESHOLD', 'TALKBRIDGE_ROUTE_PREFIX',
+        'TALKBRIDGE_UPLOAD_DISK', 'TALKBRIDGE_QUEUE_CONNECTION',
+        'TALKBRIDGE_QUEUE_NAME', 'TALKBRIDGE_CACHE_ENABLED',
+        'TALKBRIDGE_CACHE_TTL', 'TALKBRIDGE_INVITE_URL',
+        'TALKBRIDGE_PUSH_PROVIDER', 'TALKBRIDGE_MAX_FILE_SIZE',
+        'FIREBASE_CREDENTIALS',
     ];
 
     protected array $migrationPatterns = [
@@ -58,25 +67,36 @@ class UninstallChatCommand extends Command
         'add_last_seen_at_to_users_table',
     ];
 
+    // Optional packages installed by talkbridge:install
+    protected array $optionalPackages = [
+        'laravel/reverb'             => \Laravel\Reverb\ReverbServiceProvider::class,
+        'pusher/pusher-php-server'   => \Pusher\Pusher::class,
+        'ably/ably-php'              => \Ably\AblyRest::class,
+        'kreait/laravel-firebase'    => \Kreait\Firebase\Factory::class,
+        'minishlink/web-push'        => \Minishlink\WebPush\WebPush::class,
+    ];
+
     public function handle(): int
     {
+        $this->composer = new ComposerRunner();
+
         $this->printHeader();
 
         if (! $this->option('force')) {
-            if (! $this->confirm('  This will remove all chat data, published files, and injected code. Continue?', false)) {
+            if (! $this->confirm('  This removes all TalkBridge data, files, and injected code. Continue?', false)) {
                 $this->line('  Uninstall cancelled.');
                 return self::SUCCESS;
             }
         }
 
-        $this->step(1, 'Removing HasChatFeatures from User model');
-        $this->removeUserTrait();
+        $this->step(1, 'Restoring User model');
+        $this->restoreUserModel();
 
         if (! $this->option('keep-data')) {
             $this->step(2, 'Dropping database tables');
             $this->dropTables();
         } else {
-            $this->line('  [2] Skipping table removal (--keep-data)');
+            $this->line('  [2] Skipping table removal (--keep-data flag set)');
         }
 
         $this->step(3, 'Removing published files');
@@ -88,31 +108,40 @@ class UninstallChatCommand extends Command
         $this->step(5, 'Cleaning .env variables');
         $this->cleanEnvVariables();
 
+        if (! $this->option('keep-packages')) {
+            $this->step(6, 'Removing optional packages');
+            $this->removeOptionalPackages();
+        } else {
+            $this->line('  [6] Skipping package removal (--keep-packages flag set)');
+        }
+
         $this->printSuccess();
 
         return self::SUCCESS;
     }
 
-    protected function removeUserTrait(): void
+    protected function restoreUserModel(): void
     {
-        $userModelPath = $this->resolveUserModelPath();
+        $path = $this->resolveUserModelPath();
 
-        if (! $userModelPath) {
-            $this->warn('    User model not found — skipping trait removal.');
+        if (! $path) {
+            $this->warn('    User model not found — skipping.');
             return;
         }
 
-        $modifier = new UserModelModifier($userModelPath);
+        $modifier = new UserModelModifier($path);
 
         if (! $modifier->isAlreadyInjected()) {
-            $this->line('    HasChatFeatures not found in User model — nothing to remove.');
+            $this->line('    HasTalkBridgeFeatures not found — nothing to remove.');
             return;
         }
 
         $modifier->remove();
 
-        $relative = str_replace(base_path() . DIRECTORY_SEPARATOR, '', $userModelPath);
-        $this->line("    Removed HasChatFeatures  ->  {$relative}");
+        $relative = str_replace(base_path() . DIRECTORY_SEPARATOR, '', $path);
+        $this->line("    Restored  ->  {$relative}");
+        $this->line('    - HasTalkBridgeFeatures trait removed');
+        $this->line('    - last_seen_at removed from fillable (if added)');
     }
 
     protected function dropTables(): void
@@ -126,33 +155,24 @@ class UninstallChatCommand extends Command
 
         if (Schema::hasColumn('users', 'last_seen_at')) {
             Schema::table('users', fn($t) => $t->dropColumn('last_seen_at'));
-            $this->line('    Removed  ->  users.last_seen_at');
+            $this->line('    Removed column  ->  users.last_seen_at');
         }
     }
 
     protected function removePublishedFiles(): void
     {
         $targets = [
-            config_path('laravel-chat.php'),
-            base_path('stubs/laravel-chat'),
+            config_path('talkbridge.php'),
+            base_path('stubs/talkbridge'),
+            lang_path('vendor/talkbridge'),
         ];
 
         foreach ($targets as $path) {
             if (File::exists($path)) {
-                File::isDirectory($path)
-                    ? File::deleteDirectory($path)
-                    : File::delete($path);
-
+                File::isDirectory($path) ? File::deleteDirectory($path) : File::delete($path);
                 $relative = str_replace(base_path() . DIRECTORY_SEPARATOR, '', $path);
                 $this->line("    Removed  ->  {$relative}");
             }
-        }
-
-        // Remove vendor lang directory
-        $langDir = lang_path('vendor/laravel-chat');
-        if (File::exists($langDir)) {
-            File::deleteDirectory($langDir);
-            $this->line("    Removed  ->  lang/vendor/laravel-chat");
         }
     }
 
@@ -173,7 +193,7 @@ class UninstallChatCommand extends Command
         }
 
         if ($removed === 0) {
-            $this->line('    No migration files found to remove.');
+            $this->line('    No TalkBridge migration files found.');
         }
     }
 
@@ -189,24 +209,41 @@ class UninstallChatCommand extends Command
         $content = File::get($envPath);
         $removed = 0;
 
-        foreach ($this->chatEnvKeys as $key) {
+        foreach ($this->envKeys as $key) {
             if (str_contains($content, $key . '=')) {
                 $content = preg_replace("/^{$key}=.*\n?/m", '', $content);
                 $removed++;
             }
         }
 
-        // Clean up multiple consecutive blank lines left behind
+        // Clean up extra blank lines
         $content = preg_replace("/\n{3,}/", "\n\n", $content);
-
         File::put($envPath, $content);
 
         $this->line("    Removed {$removed} variable(s) from .env");
     }
 
+    protected function removeOptionalPackages(): void
+    {
+        foreach ($this->optionalPackages as $package => $checkClass) {
+            if (! $this->composer->isInstalled($checkClass)) {
+                continue;
+            }
+
+            if ($this->option('force') || $this->confirm("    Remove {$package}?", false)) {
+                $this->line("    Removing {$package}...");
+                [$ok, $out] = $this->composer->remove($package);
+
+                $ok
+                    ? $this->line("    Removed  ->  {$package}")
+                    : $this->warn("    Failed to remove {$package}:\n{$out}");
+            }
+        }
+    }
+
     protected function resolveUserModelPath(): ?string
     {
-        $userModel    = config('laravel-chat.user_model', 'App\\Models\\User');
+        $userModel    = config('talkbridge.user_model', 'App\\Models\\User');
         $relativePath = ltrim(str_replace(['App\\', '\\'], ['app/', '/'], $userModel), '/') . '.php';
         $fullPath      = base_path($relativePath);
 
@@ -226,28 +263,28 @@ class UninstallChatCommand extends Command
     protected function printHeader(): void
     {
         $this->newLine();
-        $this->line('  +--------------------------------------------------+');
-        $this->warn('  |  Laravel Chat Package  -  Uninstaller             |');
-        $this->line('  +--------------------------------------------------+');
+        $this->line('  +----------------------------------------------------+');
+        $this->warn('  |   TalkBridge  -  Uninstaller                       |');
+        $this->line('  +----------------------------------------------------+');
         $this->newLine();
     }
 
     protected function printSuccess(): void
     {
         $this->newLine();
-        $this->line('  +--------------------------------------------------+');
-        $this->info('  |  Uninstall complete.                              |');
-        $this->line('  +--------------------------------------------------+');
+        $this->line('  +----------------------------------------------------+');
+        $this->info('  |   Uninstall complete.                              |');
+        $this->line('  +----------------------------------------------------+');
         $this->newLine();
-        $this->line('  What was removed:');
-        $this->line('    - HasChatFeatures trait from User model');
-        $this->line('    - Database tables (unless --keep-data was used)');
-        $this->line('    - config/laravel-chat.php');
-        $this->line('    - Published migrations');
-        $this->line('    - Published stubs');
+        $this->line('  Removed:');
+        $this->line('    - HasTalkBridgeFeatures from User model');
+        $this->line('    - Database tables (unless --keep-data)');
+        $this->line('    - config/talkbridge.php');
+        $this->line('    - Published migrations and stubs');
         $this->line('    - .env variables');
+        $this->line('    - Optional packages (unless --keep-packages)');
         $this->newLine();
-        $this->line('  To remove the package itself:');
+        $this->line('  To remove TalkBridge itself:');
         $this->line('    composer remove rahatulrabbi/talkbridge');
         $this->newLine();
     }
@@ -256,6 +293,6 @@ class UninstallChatCommand extends Command
     {
         $this->newLine();
         $this->info("  [{$n}] {$label}");
-        $this->line('  ' . str_repeat('-', 52));
+        $this->line('  ' . str_repeat('-', 54));
     }
 }

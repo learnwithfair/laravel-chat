@@ -2,23 +2,17 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-
 return new class extends Migration {
-    public function up(): void
-    {
+    public function up(): void {
         Schema::create('message_attachments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('message_id')->constrained()->cascadeOnDelete();
             $table->string('path');
-            $table->string('type')->comment('image, video, audio, file');
+            $table->string('type');
             $table->string('name')->nullable();
             $table->unsignedBigInteger('size')->nullable();
             $table->timestamps();
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('message_attachments');
-    }
+    public function down(): void { Schema::dropIfExists('message_attachments'); }
 };

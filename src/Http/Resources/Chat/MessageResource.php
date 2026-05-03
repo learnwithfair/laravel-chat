@@ -14,7 +14,10 @@ class MessageResource extends JsonResource
             return [
                 'id'                      => $this->id,
                 'conversation_id'         => $this->conversation_id,
-                'sender'                  => ['id' => $this->sender->id, 'name' => $this->sender->name],
+                'sender'                  => [
+                    'id'   => $this->sender->id,
+                    'name' => talkbridge_user_name($this->sender),
+                ],
                 'is_deleted_for_everyone' => true,
                 'message'                 => $this->message,
                 'message_type'            => 'system',
@@ -32,15 +35,16 @@ class MessageResource extends JsonResource
             ];
         }
 
-        $groupedReactions = $this->reactions
-            ->groupBy('reaction')
-            ->map(fn($r) => $r->count())
-            ->toArray();
+        $grouped = $this->reactions->groupBy('reaction')->map(fn($r) => $r->count())->toArray();
 
         return [
             'id'                      => $this->id,
             'conversation_id'         => $this->conversation_id,
-            'sender'                  => ['id' => $this->sender->id, 'name' => $this->sender->name],
+            'sender'                  => [
+                'id'     => $this->sender->id,
+                'name'   => talkbridge_user_name($this->sender),
+                'avatar' => talkbridge_user_avatar($this->sender),
+            ],
             'is_deleted_for_everyone' => false,
             'message'                 => $this->is_restricted ? null : $this->message,
             'message_type'            => $this->message_type,
@@ -48,31 +52,31 @@ class MessageResource extends JsonResource
             'forward_to_message_id'   => $this->forward_to_message_id,
             'attachments'             => MessageAttachmentResource::collection($this->attachments),
             'reactions'               => [
-                'reactions' => $groupedReactions,
-                'total'     => array_sum($groupedReactions),
+                'reactions' => $grouped,
+                'total'     => array_sum($grouped),
             ],
             'statuses' => $this->statuses
                 ->where('user_id', '!=', $authId)
                 ->map(fn($s) => [
                     'user_id'    => $s->user_id,
-                    'name'       => $s->user->name,
-                    'avatar'     => $s->user->{config('laravel-chat.user_fields.avatar', 'avatar_path')} ?? null,
+                    'name'       => talkbridge_user_name($s->user),
+                    'avatar'     => talkbridge_user_avatar($s->user),
                     'status'     => $s->status,
                     'created_at' => $s->created_at->toDateTimeString(),
                 ])->values(),
             'reply' => $this->replyTo ? [
                 'id'      => $this->replyTo->id,
-                'sender'  => ['id' => $this->replyTo->sender->id, 'name' => $this->replyTo->sender->name],
+                'sender'  => ['id' => $this->replyTo->sender->id, 'name' => talkbridge_user_name($this->replyTo->sender)],
                 'message' => $this->replyTo->message,
                 'type'    => $this->replyTo->message_type,
             ] : null,
             'forward' => $this->forwardedFrom ? [
-                'id'      => $this->forwardedFrom->id,
-                'sender'  => [
+                'id'     => $this->forwardedFrom->id,
+                'sender' => [
                     'id'   => $this->forwardedFrom->sender->id,
                     'name' => $this->forwardedFrom->conversation->type === 'group'
                         ? $this->forwardedFrom->conversation->name
-                        : $this->forwardedFrom->sender->name,
+                        : talkbridge_user_name($this->forwardedFrom->sender),
                 ],
                 'message' => $this->forwardedFrom->message,
                 'type'    => $this->forwardedFrom->message_type,

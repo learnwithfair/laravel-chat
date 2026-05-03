@@ -1,5 +1,4 @@
 <?php
-
 namespace RahatulRabbi\TalkBridge\Events;
 
 use Illuminate\Broadcasting\InteractsWithSockets;
@@ -22,31 +21,23 @@ class ConversationEvent implements ShouldBroadcastNow
 
     public function broadcastOn(): PrivateChannel|PresenceChannel
     {
-        if ($this->targetUserId) {
-            return new PrivateChannel('user.' . $this->targetUserId);
-        }
-
-        return new PresenceChannel('conversation.' . $this->conversation->id);
+        return $this->targetUserId
+            ? new PrivateChannel('user.' . $this->targetUserId)
+            : new PresenceChannel('conversation.' . $this->conversation->id);
     }
 
-    public function broadcastAs(): string
-    {
-        return 'ConversationEvent';
-    }
+    public function broadcastAs(): string { return 'ConversationEvent'; }
 
     public function broadcastWith(): array
     {
         return [
             'action'       => $this->action,
             'conversation' => [
-                'id'     => $this->conversation->id,
-                'name'   => $this->conversation->name,
-                'type'   => $this->conversation->type,
-                'avatar' => $this->conversation->groupSetting->avatar ?? null,
-                'meta'   => array_merge(
-                    $this->conversation->meta ?? [],
-                    $this->meta ?? []
-                ),
+                'id'   => $this->conversation->id,
+                'name' => $this->conversation->name,
+                'type' => $this->conversation->type,
+                'avatar' => $this->conversation->groupSetting?->avatar,
+                'meta'   => array_merge($this->conversation->meta ?? [], $this->meta ?? []),
             ],
         ];
     }

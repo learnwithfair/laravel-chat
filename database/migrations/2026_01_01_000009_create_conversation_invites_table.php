@@ -2,10 +2,8 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-
 return new class extends Migration {
-    public function up(): void
-    {
+    public function up(): void {
         Schema::create('conversation_invites', function (Blueprint $table) {
             $table->id();
             $table->foreignId('conversation_id')->constrained()->cascadeOnDelete();
@@ -16,13 +14,8 @@ return new class extends Migration {
             $table->integer('used_count')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-
             $table->index(['conversation_id', 'is_active']);
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('conversation_invites');
-    }
+    public function down(): void { Schema::dropIfExists('conversation_invites'); }
 };

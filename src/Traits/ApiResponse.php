@@ -1,17 +1,11 @@
 <?php
-
 namespace RahatulRabbi\TalkBridge\Traits;
 
 trait ApiResponse
 {
     public function success($data, string $message = null, int $code = 200, bool $pagination = false)
     {
-        $response = [
-            'success' => true,
-            'message' => $message,
-            'data'    => $data,
-            'code'    => $code,
-        ];
+        $response = ['success' => true, 'message' => $message, 'data' => $data, 'code' => $code];
 
         if ($pagination && $data !== null && method_exists($data, 'currentPage')) {
             $response['meta'] = [
@@ -30,10 +24,7 @@ trait ApiResponse
     public function error($data, string $message = null, int $code = 500)
     {
         return response()->json([
-            'success' => false,
-            'message' => $message,
-            'data'    => $data,
-            'code'    => $code,
+            'success' => false, 'message' => $message, 'data' => $data, 'code' => $code,
         ], $code);
     }
 }
