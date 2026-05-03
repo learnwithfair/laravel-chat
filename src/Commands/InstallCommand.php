@@ -457,7 +457,7 @@ class InstallCommand extends Command
         $this->newLine();
         $this->line('  +----------------------------------------------------+');
         $this->line('  |   TalkBridge  -  Real-time Chat for Laravel         |');
-        $this->line('  |   by MD. RAHATUL RABBI  |  v1.0.1                   |');
+        $this->line('  |   by MD. RAHATUL RABBI  |  v1.0.0                   |');
         $this->line('  |   github.com/learnwithfair/talkbridge               |');
         $this->line('  +----------------------------------------------------+');
         $this->newLine();
