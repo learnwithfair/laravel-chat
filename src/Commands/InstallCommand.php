@@ -176,15 +176,84 @@ class InstallCommand extends Command
         $this->line('    Running: composer require laravel/reverb ...');
         [$ok] = $this->composer->require('laravel/reverb');
 
-        if ($ok) {
-            $this->line('    laravel/reverb installed.');
-            $this->dumpAutoload();
+        if (! $ok) {
+            $this->warn('    Auto-install failed. Run manually:');
+            $this->line('      composer require laravel/reverb');
+            return;
+        }
+
+        $this->line('    laravel/reverb installed.');
+        $this->dumpAutoload();
+
+        // reverb:install only exists after package:discover runs.
+        // We call package:discover first, then reverb:install if it exists.
+        $this->line('    Running package:discover...');
+        Artisan::call('package:discover', ['--ansi' => true]);
+
+        if (array_key_exists('reverb:install', Artisan::all())) {
+            $this->line('    Running reverb:install...');
             Artisan::call('reverb:install', ['--no-interaction' => true]);
             $this->line('    reverb:install done.');
         } else {
-            $this->warn('    Auto-install failed. Run manually:');
-            $this->line('      composer require laravel/reverb && php artisan reverb:install');
+            // Fallback: write reverb config block to config/broadcasting.php
+            $this->line('    reverb:install not available yet — writing config manually.');
+            $this->writeReverbBroadcastingConfig();
+            $this->line('    Reverb config written. Run the following after install:');
+            $this->line('      php artisan config:clear');
         }
+    }
+
+    protected function writeReverbBroadcastingConfig(): void
+    {
+        $broadcastingConfig = config_path('broadcasting.php');
+
+        // If the broadcasting config doesn't exist, publish it first
+        if (! \Illuminate\Support\Facades\File::exists($broadcastingConfig)) {
+            Artisan::call('vendor:publish', [
+                '--tag'      => 'laravel-broadcasting',
+                '--no-interaction' => true,
+            ]);
+        }
+
+        if (! \Illuminate\Support\Facades\File::exists($broadcastingConfig)) {
+            $this->warn('    Could not locate config/broadcasting.php. Run php artisan reverb:install manually.');
+            return;
+        }
+
+        $content = \Illuminate\Support\Facades\File::get($broadcastingConfig);
+
+        // Only add if reverb entry is missing
+        if (str_contains($content, "'reverb'")) {
+            $this->line('    Reverb already present in config/broadcasting.php.');
+            return;
+        }
+
+        $reverbEntry = <<<'REVERB'
+
+        'reverb' => [
+            'driver'  => 'reverb',
+            'key'     => env('REVERB_APP_KEY'),
+            'secret'  => env('REVERB_APP_SECRET'),
+            'app_id'  => env('REVERB_APP_ID'),
+            'options' => [
+                'host'    => env('REVERB_HOST'),
+                'port'    => env('REVERB_PORT', 443),
+                'scheme'  => env('REVERB_SCHEME', 'https'),
+                'useTLS'  => env('REVERB_SCHEME', 'https') === 'https',
+            ],
+            'client_options' => [],
+        ],
+REVERB;
+
+        // Insert before the closing bracket of 'connections' array
+        $content = preg_replace(
+            '/(\'connections\'\s*=>\s*\[[^\]]*)(\s*\],\s*\n\s*\];)/s',
+            '$1' . $reverbEntry . '$2',
+            $content
+        );
+
+        \Illuminate\Support\Facades\File::put($broadcastingConfig, $content);
+        $this->line('    Reverb entry added to config/broadcasting.php.');
     }
 
     protected function installPusher(): void
@@ -457,7 +526,7 @@ class InstallCommand extends Command
         $this->newLine();
         $this->line('  +----------------------------------------------------+');
         $this->line('  |   TalkBridge  -  Real-time Chat for Laravel         |');
-        $this->line('  |   by MD. RAHATUL RABBI  |  v1.0.6                   |');
+        $this->line('  |   by MD. RAHATUL RABBI  |  v1.0.7                   |');
         $this->line('  |   github.com/learnwithfair/talkbridge               |');
         $this->line('  +----------------------------------------------------+');
         $this->newLine();
