@@ -1,6 +1,6 @@
 # TalkBridge
 
-Real-time chat package for Laravel 11 and 12.
+Real-time chat package for Laravel 11, 12 and 13.
 
 Private and group conversations, message reactions, file attachments, message status
 (sent / delivered / seen), typing indicators, user blocking, group management,
@@ -15,7 +15,7 @@ FCM and Web Push notifications, WebSocket broadcasting via Reverb or Pusher.
 | Dependency | Version |
 |---|---|
 | PHP | 8.2 or higher |
-| Laravel | 11.x or 12.x |
+| Laravel | 11.x, 12.x or 13.x |
 | Laravel Sanctum | 4.x |
 
 All optional packages (Reverb, Pusher, Firebase, Web Push) are installed

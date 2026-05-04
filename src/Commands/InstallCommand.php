@@ -526,7 +526,7 @@ REVERB;
         $this->newLine();
         $this->line('  +----------------------------------------------------+');
         $this->line('  |   TalkBridge  -  Real-time Chat for Laravel         |');
-        $this->line('  |   by MD. RAHATUL RABBI  |  v1.0.7                   |');
+        $this->line('  |   by MD. RAHATUL RABBI  |  v1.0.8                   |');
         $this->line('  |   github.com/learnwithfair/talkbridge               |');
         $this->line('  +----------------------------------------------------+');
         $this->newLine();
