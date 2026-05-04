@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.4] - 2024-01-05
+
+### Changed
+- `composer.json`: added Laravel 13 support (`^13.0`) to framework requirement.
+- `composer.json`: added Laravel Sanctum 5.x support (`^5.0`).
+- `composer.json`: added PHP 8.5 to supported versions.
+
+---
+
+## [1.0.3] - 2024-01-04
+
+### Added
+- `talkbridge:update --version=x.x.x` option to install a specific version using
+  `composer require rahatulrabbi/talkbridge:x.x.x` under the hood.
+- Without `--version`, `talkbridge:update` updates to the latest stable as before.
+
+---
+
 ## [1.0.2] - 2024-01-03
 
 ### Fixed

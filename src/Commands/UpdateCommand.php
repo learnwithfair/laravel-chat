@@ -10,7 +10,8 @@ use RahatulRabbi\TalkBridge\Support\ComposerRunner;
 class UpdateCommand extends Command
 {
     protected $signature = 'talkbridge:update
-                            {--force : Overwrite published config, migrations, and stubs}
+                            {--version=      : Install a specific version e.g. --version=1.0.1}
+                            {--force         : Overwrite published config, migrations, and stubs}
                             {--skip-composer : Skip running composer update (useful in CI)}';
 
     protected $description = 'Update TalkBridge to the latest version and re-publish assets';
@@ -70,19 +71,32 @@ class UpdateCommand extends Command
 
     protected function runComposerUpdate(): void
     {
-        $this->line("  Running: composer update {$this->packageName} ...");
+        $version = $this->option('version');
+        $runner  = new ComposerRunner();
 
-        $runner   = new ComposerRunner();
-        [$ok, $out] = $runner->run("composer update {$this->packageName} --no-interaction --prefer-dist 2>&1");
+        if ($version) {
+            $cmd = "composer require {$this->packageName}:{$version} --no-interaction --prefer-dist 2>&1";
+            $this->line("  Running: composer require {$this->packageName}:{$version} ...");
+        } else {
+            $cmd = "composer update {$this->packageName} --no-interaction --prefer-dist 2>&1";
+            $this->line("  Running: composer update {$this->packageName} (latest stable) ...");
+        }
+
+        [$ok, $out] = $runner->run($cmd);
 
         if ($ok) {
-            $this->line('  composer update complete.');
+            $label = $version ? "Installed: {$version}" : 'Updated to latest.';
+            $this->line("  {$label}");
             $runner->dumpAutoload();
             $this->line('  Autoload rebuilt.');
         } else {
-            $this->warn('  composer update failed. Output:');
+            $this->warn('  Command failed. Output:');
             $this->line($out);
-            $this->warn('  Run manually: composer update ' . $this->packageName);
+            if ($version) {
+                $this->warn("  Run manually: composer require {$this->packageName}:{$version}");
+            } else {
+                $this->warn("  Run manually: composer update {$this->packageName}");
+            }
         }
     }
 
@@ -230,7 +244,12 @@ class UpdateCommand extends Command
         $this->line('  +----------------------------------------------------+');
         $this->newLine();
 
-        if ($before !== $after && $before !== 'unknown' && $after !== 'unknown') {
+        $version = $this->option('version');
+
+        if ($version) {
+            $this->line("  Requested version : <comment>{$version}</comment>");
+            $this->line("  Installed version : <info>{$after}</info>");
+        } elseif ($before !== $after && $before !== 'unknown' && $after !== 'unknown') {
             $this->line("  Updated : {$before} -> <info>{$after}</info>");
         } else {
             $this->line("  Version : <info>{$after}</info>");

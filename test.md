@@ -68,8 +68,16 @@ git push -u origin main
 Packagist resolves versions from Git tags. Always use semantic versioning.
 
 ```bash
-git tag v1.0.7
-git push origin v1.0.7
+
+git add .
+git commit -m "feat: v1.0.9 - your changes description"
+
+# 4. Git tag করুন (Packagist এটা version হিসেবে নেয়)
+git tag v1.0.9
+
+# 5. Push করুন (code + tag দুটোই)
+git push origin main
+git push origin v1.0.9
 ```
 
 ---

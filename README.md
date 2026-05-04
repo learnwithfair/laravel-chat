@@ -15,8 +15,8 @@ FCM and Web Push notifications, WebSocket broadcasting via Reverb or Pusher.
 | Dependency | Version |
 |---|---|
 | PHP | 8.2 or higher |
-| Laravel | 11.x, 12.x or 13.x |
-| Laravel Sanctum | 4.x |
+| Laravel | 11.x, 12.x, or 13.x |
+| Laravel Sanctum | 4.x or 5.x |
 
 All optional packages (Reverb, Pusher, Firebase, Web Push) are installed
 automatically based on your choices during `talkbridge:install`.
@@ -744,6 +744,7 @@ All under `/api/v1` with Sanctum auth (`Authorization: Bearer {token}`).
 | `php artisan talkbridge:version` | Show installed version and recent changelog |
 | `php artisan talkbridge:version --check` | Check Packagist for a newer version |
 | `php artisan talkbridge:update` | Update to latest version — runs composer update, migrations, cache clear |
+| `php artisan talkbridge:update --version=1.0.1` | Install a specific version |
 | `php artisan talkbridge:update --force` | Update and overwrite published config and stubs |
 | `php artisan talkbridge:auto-unmute` | Process expired mutes (auto-run by scheduler) |
 
