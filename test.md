@@ -70,14 +70,14 @@ Packagist resolves versions from Git tags. Always use semantic versioning.
 ```bash
 
 git add .
-git commit -m "feat: v1.0.9 - your changes description"
+git commit -m "feat: v1.0.10 - update version"
 
 # 4. Git tag করুন (Packagist এটা version হিসেবে নেয়)
-git tag v1.0.9
+git tag v1.0.10
 
 # 5. Push করুন (code + tag দুটোই)
 git push origin main
-git push origin v1.0.9
+git push origin v1.0.10
 ```
 
 ---

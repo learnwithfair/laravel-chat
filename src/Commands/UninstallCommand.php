@@ -88,6 +88,8 @@ class UninstallCommand extends Command
         'create_device_tokens_table',
         'create_user_blocks_table',
         'create_user_restricts_table',
+        'add_talkbridge_fields_to_users_table',
+        // legacy — kept for backward compatibility with older installs
         'add_last_seen_at_to_users_table',
     ];
 
@@ -187,9 +189,48 @@ class UninstallCommand extends Command
             }
         }
 
-        if (Schema::hasColumn('users', 'last_seen_at')) {
-            Schema::table('users', fn($t) => $t->dropColumn('last_seen_at'));
-            $this->line('    Removed column  ->  users.last_seen_at');
+        // Remove TalkBridge-added columns from users table based on config
+        $this->dropUserColumns();
+    }
+
+    protected function dropUserColumns(): void
+    {
+        $toDrop = [];
+
+        // Collect all columns TalkBridge may have added
+        $lastSeen = config('talkbridge.user_fields.last_seen', 'last_seen_at');
+        if ($lastSeen && Schema::hasColumn('users', $lastSeen)) {
+            $toDrop[] = $lastSeen;
+        }
+
+        $avatar = config('talkbridge.user_fields.avatar');
+        if ($avatar && Schema::hasColumn('users', $avatar)) {
+            $toDrop[] = $avatar;
+        }
+
+        $isActive = config('talkbridge.user_fields.is_active');
+        if ($isActive && Schema::hasColumn('users', $isActive)) {
+            $toDrop[] = $isActive;
+        }
+
+        $nameConfig = config('talkbridge.user_fields.name', 'name');
+        if (is_array($nameConfig)) {
+            foreach ($nameConfig as $col) {
+                if ($col && $col !== 'name' && Schema::hasColumn('users', $col)) {
+                    $toDrop[] = $col;
+                }
+            }
+        } elseif ($nameConfig && $nameConfig !== 'name' && Schema::hasColumn('users', $nameConfig)) {
+            $toDrop[] = $nameConfig;
+        }
+
+        $toDrop = array_unique($toDrop);
+
+        if (! empty($toDrop)) {
+            Schema::table('users', fn($t) => $t->dropColumn($toDrop));
+            foreach ($toDrop as $col) {
+                $this->line("    Removed column  ->  users.{$col}");
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 # TalkBridge
 
-Real-time chat package for Laravel 11, 12 and 13.
+Real-time chat package for Laravel 11 and 12.
 
 Private and group conversations, message reactions, file attachments, message status
 (sent / delivered / seen), typing indicators, user blocking, group management,

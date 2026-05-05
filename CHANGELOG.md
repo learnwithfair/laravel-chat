@@ -5,6 +5,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.5] - 2024-01-06
+
+### Fixed
+- `helpers.php`: All user helpers now null-safe — `talkbridge_user_name()`,
+  `talkbridge_user_avatar()`, `talkbridge_user_online()`, `talkbridge_user_last_seen()`
+  return safe defaults when `$user` is `null` or not an object.
+- `ConversationResource`: null-safe on all relations (sender, receiver, creator, participants).
+- `MessageResource`: null-safe on sender, replyTo->sender, forwardedFrom->sender.
+- `HasTalkBridgeFeatures`: null guards on `hasBlocked()`, `isBlockedBy()`, `hasRestricted()`.
+- Removed redundant migration 13 (`add_last_seen_at_to_users_table`) — migration 14 handles all user columns.
+
+### Added
+- Migration `add_talkbridge_fields_to_users_table`: reads config and adds ONLY missing columns.
+  Handles `name` (single or composite), `avatar_path`, `last_seen_at`, `is_active`.
+  Fully idempotent — never modifies existing columns.
+- `UserModelModifier`: adds all config-driven columns to `$fillable` on install;
+  removes them on uninstall. Skips if model uses `$guarded`.
+- `UninstallCommand::dropUserColumns()`: removes all config-driven user columns on uninstall.
+- New helpers: `talkbridge_user_online($user)`, `talkbridge_user_last_seen($user)`.
+- Laravel 13 support (`^13.0`), Sanctum 5.x support (`^5.0`), PHP 8.5 support.
+
+---
+
 ## [1.0.4] - 2024-01-05
 
 ### Changed

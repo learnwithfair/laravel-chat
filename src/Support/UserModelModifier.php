@@ -8,26 +8,29 @@ use Illuminate\Support\Facades\File;
  * UserModelModifier
  *
  * Safely:
- *  - Injects the HasTalkBridgeFeatures trait into the User model
- *  - Removes the trait on uninstall (marker-based, surgical removal)
- *  - Detects whether the model uses $fillable or $guarded
- *  - Adds the last_seen column to $fillable if the model uses it,
- *    OR does nothing if the model uses $guarded = []
+ *  1. Injects HasTalkBridgeFeatures trait (marker-based, surgical)
+ *  2. Removes trait on uninstall
+ *  3. Detects $fillable vs $guarded
+ *  4. Adds required TalkBridge columns to $fillable based on config
+ *  5. Removes those columns from $fillable on uninstall
+ *
+ * Never modifies $guarded — if the model uses $guarded = [] everything
+ * is already mass-assignable, no changes needed.
  */
 class UserModelModifier
 {
-    protected string $traitFqn     = '\\RahatulRabbi\\TalkBridge\\Traits\\HasTalkBridgeFeatures';
-    protected string $markerStart  = '// @talkbridge:start';
-    protected string $markerEnd    = '// @talkbridge:end';
+    protected string $markerStart = '// @talkbridge:start';
+    protected string $markerEnd   = '// @talkbridge:end';
+    protected string $traitFqn    = '\\RahatulRabbi\\TalkBridge\\Traits\\HasTalkBridgeFeatures';
 
     public function __construct(protected string $userModelPath) {}
 
-    // -------------------------------------------------------------------------
+    // =========================================================================
     // Public API
-    // -------------------------------------------------------------------------
+    // =========================================================================
 
     /**
-     * Inject trait + handle fillable/guarded.
+     * Inject trait + patch fillable.
      */
     public function inject(): void
     {
@@ -37,21 +40,19 @@ class UserModelModifier
             $content = $this->addTrait($content);
         }
 
-        $content = $this->handleModelProtection($content, 'inject');
+        $content = $this->patchFillable($content, 'add');
 
         $this->write($content);
     }
 
     /**
-     * Remove trait + reverse fillable changes.
+     * Remove trait + revert fillable changes.
      */
     public function remove(): void
     {
         $content = $this->read();
-
         $content = $this->removeTrait($content);
-        $content = $this->handleModelProtection($content, 'remove');
-
+        $content = $this->patchFillable($content, 'remove');
         $this->write($content);
     }
 
@@ -60,9 +61,9 @@ class UserModelModifier
         return str_contains($content ?? $this->read(), $this->markerStart);
     }
 
-    // -------------------------------------------------------------------------
+    // =========================================================================
     // Trait injection
-    // -------------------------------------------------------------------------
+    // =========================================================================
 
     protected function addTrait(string $content): string
     {
@@ -72,7 +73,7 @@ class UserModelModifier
             '    ' . $this->markerEnd,
         ]);
 
-        // Insert right after the first opening class brace
+        // Insert right after the first class opening brace
         if (preg_match('/\{/m', $content, $matches, PREG_OFFSET_CAPTURE)) {
             $pos = $matches[0][1];
             return substr($content, 0, $pos + 1)
@@ -91,35 +92,83 @@ class UserModelModifier
         return preg_replace($pattern, "\n", $content);
     }
 
-    // -------------------------------------------------------------------------
-    // Fillable / Guarded detection and patching
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Fillable / Guarded patching
+    // =========================================================================
 
-    protected function handleModelProtection(string $content, string $mode): string
+    protected function patchFillable(string $content, string $mode): string
     {
-        $lastSeenField = config('talkbridge.user_fields.last_seen', 'last_seen_at');
-
+        // If model uses $guarded — nothing to do, everything is mass-assignable
         if ($this->modelUsesGuarded($content)) {
-            // $guarded = [] means everything is mass-assignable — nothing to add
             return $content;
         }
 
-        if ($this->modelUsesFillable($content)) {
-            if ($mode === 'inject') {
-                return $this->addToFillable($content, $lastSeenField);
-            }
+        if (! $this->modelUsesFillable($content)) {
+            return $content;
+        }
 
-            if ($mode === 'remove') {
-                return $this->removeFromFillable($content, $lastSeenField);
+        $fields = $this->resolveFieldsToAdd();
+
+        if (empty($fields)) {
+            return $content;
+        }
+
+        if ($mode === 'add') {
+            foreach ($fields as $field) {
+                $content = $this->addFieldToFillable($content, $field);
+            }
+        } elseif ($mode === 'remove') {
+            foreach ($fields as $field) {
+                $content = $this->removeFieldFromFillable($content, $field);
             }
         }
 
         return $content;
     }
 
+    /**
+     * Collect all column names TalkBridge may need in $fillable,
+     * based on what is configured in config/talkbridge.php.
+     */
+    protected function resolveFieldsToAdd(): array
+    {
+        $fields = [];
+
+        // last_seen column
+        $lastSeen = config('talkbridge.user_fields.last_seen', 'last_seen_at');
+        if ($lastSeen) {
+            $fields[] = $lastSeen;
+        }
+
+        // avatar column
+        $avatar = config('talkbridge.user_fields.avatar');
+        if ($avatar) {
+            $fields[] = $avatar;
+        }
+
+        // is_active column
+        $isActive = config('talkbridge.user_fields.is_active');
+        if ($isActive) {
+            $fields[] = $isActive;
+        }
+
+        // name column(s)
+        $nameConfig = config('talkbridge.user_fields.name', 'name');
+        if (is_array($nameConfig)) {
+            foreach ($nameConfig as $col) {
+                if ($col && $col !== 'name') {
+                    $fields[] = $col;
+                }
+            }
+        } elseif ($nameConfig && $nameConfig !== 'name') {
+            $fields[] = $nameConfig;
+        }
+
+        return array_unique(array_filter($fields));
+    }
+
     protected function modelUsesGuarded(string $content): bool
     {
-        // Matches: protected $guarded = []; or protected $guarded = ['*'];
         return (bool) preg_match('/\$guarded\s*=\s*\[/', $content);
     }
 
@@ -128,35 +177,35 @@ class UserModelModifier
         return str_contains($content, '$fillable');
     }
 
-    protected function addToFillable(string $content, string $field): string
+    protected function addFieldToFillable(string $content, string $field): string
     {
-        // Already present?
+        // Skip if already present
         if (str_contains($content, "'{$field}'") || str_contains($content, "\"{$field}\"")) {
             return $content;
         }
 
-        // Add to end of fillable array: find last item before ] and append
+        // Append inside the fillable array before its closing bracket
         return preg_replace_callback(
-            '/(\$fillable\s*=\s*\[)(.*?)(\];)/s',
+            '/(\$fillable\s*=\s*\[)(.*?)(\s*\];)/s',
             function ($matches) use ($field) {
-                $body    = rtrim($matches[2]);
-                $hasComma = str_ends_with($body, ',');
-                $sep      = $hasComma ? '' : ',';
-                return $matches[1] . $body . $sep . "\n        '{$field}',\n    " . $matches[3];
+                $body     = rtrim($matches[2]);
+                $trailing = str_ends_with($body, ',') ? '' : ',';
+                return $matches[1] . $body . $trailing . "\n        '{$field}'," . "\n    " . $matches[3];
             },
             $content
         );
     }
 
-    protected function removeFromFillable(string $content, string $field): string
+    protected function removeFieldFromFillable(string $content, string $field): string
     {
-        // Remove the specific line we added
-        return preg_replace("/\s*'{$field}',?\n/", "\n", $content);
+        // Remove lines that contain the field — handles both single and double quotes
+        $content = preg_replace("/\s*['\"]" . preg_quote($field, '/') . "['\"],?\n/", "\n", $content);
+        return $content;
     }
 
-    // -------------------------------------------------------------------------
-    // File helpers
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // File I/O
+    // =========================================================================
 
     protected function read(): string
     {
